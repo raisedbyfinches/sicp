@@ -1,0 +1,1019 @@
+#+title: Building abstractions with procedures
+
+There is a lot of base knowledge explanation here. Creating common parlance ready for the real work coming later.
+
+* Introduction
+
+LISP is a very important language in the history of computer programming. All those interactive terminals you love in modern programming? All inspired by the LISP REPL. Emacs has endured for 50 years and is still the most extensible operating system masquerading as a text editor because of emacs LISP. If it hadn't been for LISP, I'm certain the computing landscape would be really different now.
+
+For this book we will use Scheme, which is a "dialect" of LISP. There are many different flavours of LISP, and this is just one. They all start with the same "core" and then diverge from there. A common LISP program will not run in Scheme, and vice versa. We should all install and use Scheme for it and not SBCL etc. so we can more readily share our work.
+
+* 1.1 The Elements of Programming
+
+Substitution model is just doing the name looksup needed to be able to compute the output. The two models are to expand the functions out into primitive operations and then perform calculations when needed, or to calculate the primitive operations and then expand the functions.
+
+- fully expand and then reduce: normal order evaluation
+- compute arguments and then expand: applicative order evaluation
+
+LISPs use applicative order evaluation. I like normal order evaluation because Haskell and lazy.
+
+** Exercise 1
+Below is a sequence of expressions. What is the result printed by the interpreter in response to each expression? Assume that the sequence is to be evaluated in the order in which it is presented. I've put them in emacs-lisp evaluated code blocks to confirm. Everything with an output behaved as I expected. Things written without code blocks are the ones I got wrong (spoiler: none of them).
+
+#+begin_src emacs-lisp
+10
+#+end_src
+
+#+RESULTS:
+: 10
+
+#+begin_src emacs-lisp
+(+ 5 3 4)
+#+end_src
+
+#+RESULTS:
+: 12
+
+#+begin_src emacs-lisp
+(- 9 1)
+#+end_src
+
+#+RESULTS:
+: 8
+
+#+begin_src emacs-lisp
+(/ 6 2)
+#+end_src
+
+#+RESULTS:
+: 3
+
+
+#+begin_src emacs-lisp
+(+ (* 2 4) (- 4 6))
+#+end_src
+
+#+RESULTS:
+: 6
+
+#+begin_src emacs-lisp
+(defvar a 3)
+(defvar b (+ a 1))
+
+(+ a b (* a b))
+#+end_src
+
+#+RESULTS:
+: 19
+
+#+begin_src emacs-lisp
+(defvar a 3)
+(defvar b (+ a 1))
+
+(= a b)
+#+end_src
+
+#+RESULTS:
+This is expected behaviour of eLISP. I know what it means.
+
+#+begin_src emacs-lisp
+(defvar a 3)
+(defvar b (+ a 1))
+
+(if (and (> b a) (< b (* a b))) b a)
+#+end_src
+
+#+RESULTS:
+: 4
+
+#+begin_src emacs-lisp
+(defvar a 3)
+(defvar b (+ a 1))
+
+(cond ((= a 4) 6) ((= b 4) (+ 6 7 a)) (else 25))
+#+end_src
+
+#+RESULTS:
+: 16
+
+
+#+begin_src emacs-lisp
+(defvar a 3)
+(defvar b (+ a 1))
+
+(+ 2 (if (> b a) b a))
+#+end_src
+
+#+RESULTS:
+: 6
+
+
+#+begin_src emacs-lisp
+(defvar a 3)
+(defvar b (+ a 1))
+
+(* (cond ((> a b) a) ((< a b) b) (else -1))  (+ a 1))
+#+end_src
+
+#+RESULTS:
+: 16
+
+
+** Exercise 2
+Translate the following expression into prefix form:
+
+\begin{equation}
+\frac{5 + 4 + (2 - (3 - (6 + \frac{4}{5})))}{3(6-2)(2-7)}
+\end{equation}
+
+#+begin_src emacs-lisp
+(/
+ (+ 5 4 (- 2 (- 3 (+ 6 (/ 4 5)))))
+ (* 3 (- 6 2) (- 2 7))
+)
+#+end_src
+
+** Exercise 3
+Define a procedure that takes three numbers as arguments and returns the sum of the squares of the two larger numbers.
+
+#+begin_src scheme
+(define (sum-of-squares x y)
+  (+ (* x x) (* y y)))
+
+(define (sum-squares-largest-two a b c)
+  (cond ((and (<= a b) (<= a c)) (sum-of-squares b c))
+        ((and (<= b a) (<= b c)) (sum-of-squares a c))
+        (else (sum-of-squares a b))))
+#+end_src
+
+** Exercise 4
+    Observe that our model of evaluation allows for combinations whose operators are compound expressions. Use this
+    observation to describe the behavior of the following procedure:
+
+#+begin_src scheme
+(define (a-plus-abs-b a b)
+        ((if (> b 0) + -) a b))
+#+end_src
+
+This procedure defines a function ~a-plus-abs-b~ which checks whether the second argument is non-positive. If it is positive then it adds the two arguments. If it is 0 or negative then it subtracts them. This effective flips the sign on the negative value hence the name of "a plus the absolute value of b".
+
+** Exercise 5
+Ben Bitdiddle has invented a test to determine whether the interpreter he is faced with is using applicative-order evaluation or normal-order evaluation. He defines the following two procedures:
+
+#+begin_src scheme
+(define (p) (p))
+
+(define (test x y)
+  (if (= x 0)
+      0
+      y))
+#+end_src
+
+Then he evaluates the expression
+
+#+begin_src scheme
+(test 0 (p))
+#+end_src
+
+What behavior will Ben observe with an interpreter that uses applicative-order evaluation? What behavior will he observe with an interpreter that uses normal-order evaluation? Explain your answer. (Assume that the evaluation rule for the special form if is the same whether the interpreter is using normal or applicative order: The predicate expression is evaluated first, and the result determines whether to evaluate the consequent or the alternative expression.)
+
+**** Applicative order
+The program will enter an infinite loop, constantly creating new environments as it attempts to evaluate the arguments.
+
+#+begin_src scheme
+(test 0 (p))
+(test 0 ((p))    -- replaces p with its definition
+(test 0 (((p)))) -- replaces p with its definition again
+... repeat ad infinitum nesting more and more p's
+#+end_src
+
+
+**** Normal order
+This one will terminate. Quickly.
+
+#+begin_src scheme
+(test 0 (p))
+((if (= 0 0)
+      0
+      (p)))
+0
+#+end_src
+
+
+** Exercise 6
+Alyssa P. Hacker doesn’t see why if needs to be provided as a special form. “Why can’t I just define it as an ordinary procedure in terms of cond?” she asks. Alyssa’s friend Eva Lu Ator claims this can indeed be done, and she defines a new version of if:
+
+#+begin_src scheme
+(define (new-if predicate
+                then-clause
+                else-clause)
+  (cond (predicate then-clause)
+        (else else-clause)))
+#+end_src
+
+Eva demonstrates the program for Alyssa:
+
+#+begin_src scheme
+(new-if (= 2 3) 0 5)
+;; 5
+
+(new-if (= 1 1) 0 5)
+;; 0
+#+end_src
+
+Delighted, Alyssa uses new-if to rewrite the square-root program:
+
+#+begin_src scheme
+(define (sqrt-iter guess x)
+  (new-if (good-enough? guess x)
+          guess
+          (sqrt-iter (improve guess x) x)))
+#+end_src
+
+What happens when Alyssa attempts to use this to compute square roots? Explain.
+
+*** Answer
+When Alyssa attempts to use her rewritten ~sqrt-iter~ function with ~new-if~, the program will never terminate and will likely cause a stack overflow error. The issue lies in the fundamental difference between special forms and regular procedures.
+
+*Special forms like if use normal-order evaluation*
+
+The predicate is evaluated first. Based on the result, EITHER the consequent OR the alternative is evaluated (but never both)
+
+*Regular procedures like new-if use applicative-order evaluation*
+
+All arguments are evaluated before the procedure is applied. This means both the then-clause and else-clause are evaluated regardless of the predicate's value.
+
+When using ~new-if~, the recursive call to ~(sqrt-iter (improve guess x) x)~ will always be evaluated, even when ~(good-enough? guess x)~ returns true. This creates an infinite recursion because the termination condition never stops the recursive calls from being evaluated.
+
+With the original ~if~ special form, once ~good-enough?~ returns true, the recursive call would never be evaluated, allowing the recursion to terminate properly.
+
+** Exercise 7
+
+The good-enough? test used in computing square roots will not be very effective for finding the square roots of very small numbers. Also, in real computers, arithmetic operations are almost always performed with limited precision. This makes our test inadequate for very large numbers. Explain these statements, with examples showing how the test fails for small and large numbers. An alternative strategy for implementing good-enough? is to watch how guess changes from one iteration to the next and to stop when the change is a very small fraction of the guess. Design a square-root procedure that uses this kind of end test. Does this work better for small and large numbers?
+
+
+*** Answer
+
+For very small numbers it is difficult to find even smaller numbers to enable the iterations to continue. The threshold at which we pick the stopping point should be smaller than the target number itself. This is hard because the way in which numbers are represented in the computer means it is complex to define and have those numbers at time. For large numbers there are two issues, if the initial guess is poor then the time for convergence of the method can be large. It can also be difficult to represent extremely large numbers in a computer. For example 2↑↑128 is 2 to the power of 2 to the power of 2... 128 times in total. This number is too large to fit into the typical memory allocation for numbers (but can be handled in some languages).
+
+** Exercise 8
+Newton’s method for cube roots is based on the fact that if y is an approximation to the cube root of x , then a better approximation is given by the value
+
+\begin{equation}
+\frac{x + 2 y^3}{3 y^2}
+\end{equation}
+
+Use this formula to implement a cube-root procedure analogous to the square-root procedure. (In 1.3.4 we will see how to implement Newton’s method in general as an abstraction of these square-root and cube-root procedures.)
+
+*** Answer
+#+TODO
+
+* 1.2 Procedures and the Processes they Generate
+
+The opening paragraphs of this section are superb. This whole section should be the thing you read to decide whether you /want/ to read SICP. Its okay to not want to become expert, there are other important skills and knowledge you can have.
+
+This section gives you the methods to tackle problems. The different ways in which you can define procedures, functions and algorithms.
+
+** Exercise 9
+
+Each of the following two procedures defines a method for adding two positive integers in terms of the procedures inc, which increments its argument by 1, and dec, which decrements its argument by 1.
+
+#+begin_src scheme
+(define (+ a b)
+  (if (= a 0)
+      b
+      (inc (+ (dec a) b))))
+
+(define (+ a b)
+  (if (= a 0)
+      b
+      (+ (dec a) (inc b))))
+#+end_src
+
+Using the substitution model, illustrate the process generated by each procedure in evaluating (+ 4 5). Are these processes iterative or recursive?
+
+*** Answer
+
+**** First Procedure
+
+#+begin_src scheme
+(define (+ a b)
+  (if (= a 0)
+      b
+      (inc (+ (dec a) b))))
+#+end_src
+
+Evaluating ~(+ 4 5)~ step by step:
+
+#+begin_src scheme
+(+ 4 5)
+(if (= 4 0) 5 (inc (+ (dec 4) 5)))
+(if #f 5 (inc (+ 3 5)))
+(inc (+ 3 5))
+(inc (if (= 3 0) 5 (inc (+ (dec 3) 5))))
+(inc (if #f 5 (inc (+ 2 5))))
+(inc (inc (+ 2 5)))
+(inc (inc (if (= 2 0) 5 (inc (+ (dec 2) 5)))))
+(inc (inc (if #f 5 (inc (+ 1 5)))))
+(inc (inc (inc (+ 1 5))))
+(inc (inc (inc (if (= 1 0) 5 (inc (+ (dec 1) 5))))))
+(inc (inc (inc (if #f 5 (inc (+ 0 5))))))
+(inc (inc (inc (inc (+ 0 5)))))
+(inc (inc (inc (inc (if (= 0 0) 5 (inc (+ (dec 0) 5)))))))
+(inc (inc (inc (inc (if #t 5 (inc (+ (dec 0) 5)))))))
+(inc (inc (inc (inc 5))))
+(inc (inc (inc 6)))
+(inc (inc 7))
+(inc 8)
+9
+#+end_src
+
+This is a *recursive process*.
+
+The interpreter builds up a chain of deferred operations (the ~inc~ operations) that need to be performed after reaching the base case. The length grows with the input, and the memory needed to keep track of these operations grows linearly with the input size.
+
+**** Second Procedure
+
+#+begin_src scheme
+(define (+ a b)
+  (if (= a 0)
+      b
+      (+ (dec a) (inc b))))
+#+end_src
+
+Evaluating ~(+ 4 5)~ step by step:
+
+#+begin_src scheme
+(+ 4 5)
+(if (= 4 0) 5 (+ (dec 4) (inc 5)))
+(if #f 5 (+ 3 6))
+(+ 3 6)
+(if (= 3 0) 6 (+ (dec 3) (inc 6)))
+(if #f 6 (+ 2 7))
+(+ 2 7)
+(if (= 2 0) 7 (+ (dec 2) (inc 7)))
+(if #f 7 (+ 1 8))
+(+ 1 8)
+(if (= 1 0) 8 (+ (dec 1) (inc 8)))
+(if #f 8 (+ 0 9))
+(+ 0 9)
+(if (= 0 0) 9 (+ (dec 0) (inc 9)))
+(if #t 9 (+ (dec 0) (inc 9)))
+9
+#+end_src
+
+This is an *iterative process*.
+
+At each step, we have a new function call with updated arguments. There are no deferred operations being accumulated. All the state information is captured in the arguments ~a~ and ~b~. The space required remains constant regardless of the input size.
+
+**** Comparison
+
+1. First procedure:
+   - Creates a chain of deferred ~inc~ operations
+   - Requires memory that grows linearly with input size
+   - *Recursive*
+
+2. Second procedure:
+   - Maintains all state in the function arguments
+   - Requires constant memory regardless of input size
+   - *Iterative*
+
+Although both procedures are defined recursively (they call themselves), the processes they generate when evaluated are different. The first generates a recursive process, while the second generates an iterative process (aka _tail recursion_).
+
+** Exercise 10
+
+The following procedure computes a mathematical function called Ackermann’s function.
+
+#+begin_src scheme
+(define (A x y)
+  (cond ((= y 0) 0)
+        ((= x 0) (* 2 y))
+        ((= y 1) 2)
+        (else (A (- x 1)
+                 (A x (- y 1))))))
+#+end_src
+
+What are the values of the following expressions?
+
+#+begin_src scheme
+(A 1 10)
+(A 2 4)
+(A 3 3)
+#+end_src
+
+Consider the following procedures, where ~A~ is the procedure defined above:
+
+#+begin_src scheme
+(define (f n) (A 0 n))
+(define (g n) (A 1 n))
+(define (h n) (A 2 n))
+(define (k n) (* 5 n n))
+#+end_src
+
+Give concise mathematical definitions for the functions computed by the procedures ~f~, ~g~, and ~h~ for positive integer values of ~n~. For example, ~(k n)~ computes $5n^2$.
+
+*** Answer
+
+**** Evaluating Ackermann Function
+
+***** Evaluating ~(A 1 10)~
+
+For ~A(1, 10)~, we'll apply the last condition: ~(A (- 1 1) (A 1 (- 10 1))) = (A 0 (A 1 9))~
+For ~A(1, 9)~, we again apply the last condition: ~(A 0 (A 1 8))~
+
+Continuing this pattern:
+
+~A(1, 8)~ → ~(A 0 (A 1 7))~
+~A(1, 7)~ → ~(A 0 (A 1 6))~
+...
+~A(1, 2)~ → ~(A 0 (A 1 1))~
+
+For ~A(1, 1)~, we apply the third condition
+
+So
+~A(1, 2) = (A 0 2) = 2 × 2 = 4~ (applying the second condition)
+~A(1, 3) = (A 0 4) = 2 × 4 = 8~
+~A(1, 4) = (A 0 8) = 2 × 8 = 16~
+~A(1, 5) = (A 0 16) = 2 × 16 = 32~
+...
+~A(1, 10) = 2^10 = 1024~
+
+***** Evaluating ~(A 2 4)~
+
+For:
+- ~A(2, 4)~, we apply the last condition: ~(A 1 (A 2 3))~
+- ~A(2, 3)~, we again apply the last condition: ~(A 1 (A 2 2))~
+- ~A(2, 2)~, we apply the last condition: ~(A 1 (A 2 1))~
+- ~A(2, 1)~, we apply the third condition: ~2~
+
+So
+~A(2, 2) = (A 1 2) = 2^2 = 4~
+~A(2, 3) = (A 1 4) = 2^4 = 16~
+~A(2, 4) = (A 1 16) = 2^16 = 65536~
+
+***** Evaluating ~(A 3 3)~
+
+- ~A(3, 3)~  → ~(A 2 (A 3 2))~
+- ~A(3, 2)~ → ~(A 2 (A 3 1))~
+- ~A(3, 1)~ → ~2~
+
+So
+~A(3, 2) = (A 2 2) = 4~
+~A(3, 3) = (A 2 4) = 65536~
+
+**** Mathematical Definitions for f, g, and h
+
+***** ~f(n) = A(0, n)~
+
+From the second condition in the Ackermann function, when $x = 0$:
+
+\begin{equation}
+f(n) = A(0, n) = 2 × n = 2n
+\end{equation}
+
+*****  ~g(n) = A(1, n)~
+
+From our calculations of $A(1, 10)$ and the pattern we observed:
+
+\begin{equation}
+\begin{aligned}
+g(1) =& A(1, 1) = 2\\
+g(2) =& A(1, 2) = 4 = 2^2\\
+g(3) =& A(1, 3) = 8 = 2^3\\
+g(4) =& A(1, 4) = 16 = 2^4\\
+\end{aligned}
+
+Therefore, $g(n) = A(1, n) = 2^n$.
+
+***** ~h(n) = A(2, n)~
+
+From our calculations:
+
+\begin{equation}
+\begin{aligned}
+h(1) =& A(2, 1) = 2\\
+h(2) =& A(2, 2) = 4 = 2^2\\
+h(3) =& A(2, 3) = 16 = 2^4 = 2^{2^2}\\
+h(4) =& A(2, 4) = 65536 = 2^16 = 2^{2^4} = 2^{2^{2^2}}
+\end{aligned}
+\end{equation}
+
+The pattern is: $h(n) = A(2, n) = 2^{2^{2^...}}$ with $n-1$ exponentiation operations
+
+We can write this as:
+
+\begin{equation}
+\left{
+\begin{aligned}
+h(n) =& 2^{h(n-1)}, n > 1\\
+h(1) =& 2
+\end{aligned}
+\right.
+\end{equation}
+
+Fun maths notation addition: using Knuth's up-arrow notation for iterated exponentiation this can be rewritten as $h(n) = 2 \uparrow\uparrow n$ (aka 2 tetrated to the n).
+
+** Exercise 11
+A function ~f~ is defined by the rule that $f ( n ) = n$ if $n < 3$ and $f ( n ) = f ( n − 1 ) + 2 f ( n − 2 ) + 3 f ( n − 3 )$ if $n ≥ 3$. Write a procedure that computes ~f~ by means of a recursive process. Write a procedure that computes ~f~ by means of an iterative process.
+
+
+It doesn't ask for an optimised version 🙂
+
+*** Recursive
+
+#+begin_src scheme
+(define (f-recursive n)
+  (cond ((< n 3) n)
+        (else (+ (f-recursive (- n 1))
+                 (* 2 (f-recursive (- n 2)))
+                 (* 3 (f-recursive (- n 3)))))))
+#+end_src
+
+O(n) space complexity, I think?
+
+*** Iterative Process
+
+#+begin_src scheme
+(define (f-iterative n)
+  (define (f-iter a b c count)
+    (if (= count n)
+        a
+        (f-iter (+ a (* 2 b) (* 3 c))
+                a
+                b
+                (+ count 1))))
+
+  (cond ((< n 3) n)
+        (else (f-iter 2 1 0 2))))
+#+end_src
+
+
+** Exercise 12
+
+Write a procedure which computes the elements of Pascal's triangle by means of a recursive process.
+
+I don't really know whether this wants the whole triangle or not, so I'm gonna make 3. I haven't run this so am assuming the scheme implementation has ~iota~. This just generates a sequence of integers from ~0~ to ~n-1~.
+
+#+begin_src scheme
+;; Compute a single element
+(define (pascal row col)
+  (cond
+   ;; outsides
+   ((or (= col 0) (= col row)) 1)
+
+   ;; recursive case
+   (else (+ (pascal (- row 1) (- col 1))
+            (pascal (- row 1) col)))))
+
+;; compute a row
+(define (pascal-row row)
+  (map (lambda (col) (pascal row col))
+       (iota (+ row 1))))
+
+;; produce the first n rows
+(define (pascal-triangle n)
+  (map pascal-row (iota n)))
+
+;; examples:
+;; (pascal 4 2)  -> 6
+;; (pascal-row 4) -> (1 4 6 4 1)
+;; (pascal-triangle 4) ->
+;;      ((1)
+;;      (1 1)
+;;     (1 2 1)
+;;    (1 3 3 1)
+;;   (1 4 6 4 1))
+
+#+end_src
+
+** Exercise 13
+
+Proofs by induction. I'll come back to this only if nobody else has done it and share it with everyone then.
+
+
+* Orders of Growth
+
+For people who are already aware of it, $\Theta$ is not the same as big-O notation. This is an important distinction to make.
+
+- $\Theta$ provides upper and lower bounds, it is "exact growth". For example, $\Theta(n^2)$ means that the runtime (or space) grows precisely at a quadratic rate up to some constants, neither significantly faster or slower.
+- Big-O notation provides an upper bound on the time or space complexity's growth. It is a "worst case" maximum growth of resource. For example, $O(n^2)$ means that the algorithm's runtime (or space) will not grow faster than a quadratic function, but could be much slower growth.
+
+** Exercise 14
+** Exercise 15
+I didn't have time with leave and hospital stuff. I wanted to get through the whole thing.
+
+
+* Exponentiation
+
+The trick here for computing fast exponentiation is a good one to try to understand. Reducing the number of computations in any calculation can lead to much better performing approaches to problems.
+
+** Exercises 16-19
+Time, I'll do these in the remainder of the week. Time again.
+
+* Greatest common divisors onward
+
+I actually set calculation of gcd as a task for Piotr to write before I remembered that it was in here. Check if he did it.
+
+
+
+* 1.3 Higher order functions and the procedures they generate
+
+#+begin_quote
+Our programs would be able to compute cubes, but our language would lack the ability to express the concept of cubing.
+#+end_quote
+
+I really liked this inoccuous looking statement, it highlights the difference between having a procedure that calculates cubes and having "cubing" as an expressible concept in the language itself. At first glance, this might seem like a minor distinction—isn't being able to calculate cubes enough?
+
+There's something much deeper here. When a concept exists only as a procedure but not as a manipulable entity in our language, we face serious limitations:
+
+1. **Abstraction barriers**
+2. **Metalinguistic capabilities**: The statement points to the difference between using a language and being able to talk about the language itself. Languages that can express operations as data enable metacircular evaluation—interpreters written in the language itself.
+3. **Higher-order thinking**: When cubing is just a computation but not an expressible concept, we lose the ability to perform higher-order operations. We can't easily create a function that takes "cubing" as an input and returns, say, "cubing composed with itself."
+
+The difference reflects how human knowledge works. Our intellectual progress depends not just on being able to perform operations, but on being able to reify those operations—turning them into "things" we can reason about, combine, and transform.
+
+This cuts to the heart of why certain programming paradigms (particularly functional programming 🩷) emphasise having functions as first-class citizens. It's not just a technical convenience; it's about the fundamental expressive power of the language and the kinds of abstractions it enables.
+
+This ports the Sapir-Whorf hypothesis to programming: the languages we use shape what we can think about.
+
+** Exercise 29
+
+Simpson’s Rule is a more accurate method of numerical integration than the method illustrated above. Using Simpson’s Rule, the integral of a function f between a and b is approximated as
+
+$$
+\frac{h}{3} \left(
+y_0 + 4y_1 + 2y_2 + 4y_3 + 2y_4 + \ldots + 2y_{n-2} + 4y_{n-1} + y_n
+\right)
+$$
+
+where $h = \frac{b - a}{n}$, for some even integer $n$, and $y_k = f ( a + k h )$ . (Increasing $n$ increases the accuracy of the approximation.) Define a procedure that takes as arguments $f$, $a$, $b$, and $n$ and returns the value of the integral, computed using Simpson’s Rule. Use your procedure to integrate cube between 0 and 1 (with $n$ = 100 and $n$ = 1000 ), and compare the results to those of the integral procedure shown above.
+
+*** Solution
+
+I'm going to regroup the terms for ease of computation into those multiplied by 1, 2 and 4. I'll re-use the ~sum~ function that's in the chapter.
+
+#+begin_src scheme
+(define (sum term a next b)
+  (if (> a b)
+      0
+      (+ (term a)
+         (sum term (next a) next b))))
+
+(define (cube x) (* x x x))
+
+;; This will assume that n is even, which is fine for the tasks we
+;; have been given of 100 and 1000. I'm not going to bother doing
+;; e.g. Simpson's 3/8 rule.
+(define (int-simpson f a b n)
+  (define h (/ (- b a) n))
+  (define (add-2h x) (+ x h h))
+  (* (+ (f a)
+        (* 2 (sum f (add-2h a) add-2h (- b h)))
+        (* 4 (sum f (+ a h) add-2h b))
+        (f b))
+     (/ h 3)))
+
+
+(display (int-simpson cube 0 1.0 100)) (newline)
+(display (int-simpson cube 0 1.0 1000)) (newline)
+;; 0.25000000000000044
+;; 0.25000000000000083
+#+end_src
+
+For the same number of steps this gives a little more accuracy on the input values we have.
+
+** Exercise 30
+
+Now do it iteratively.
+
+#+begin_src scheme
+(define (sum term a next b)
+  (define (iter a result)
+    (if (> a b)
+        result
+        (iter (next a) (+ result (term a)))))
+  (iter a 0))
+#+end_src
+
+Reasonably straight forward one here.
+
+
+** Exercise 31
+Did this for Zach ahead of time, will copy the question in later.
+
+1. Defining product
+#+begin_src scheme
+(define (product f a g b)
+  (if (> a b)
+      1
+      (* (f a)
+         (product f (g a) g b))))
+#+end_src
+
+2. Need to still rewrite it as tail recursive but for approximating π we can use Wallis' formula as shown
+#+begin_src scheme
+(define (approx n)
+  (define (f n)
+    (* (/ (* 2 n)
+          (- (* 2 n) 1))
+       (/ (* 2 n)
+          (+ (* 2 n) 1))))
+  (product f 1.0 inc n))
+#+end_src
+
+Doing it iteratively.
+#+begin_src scheme
+(define (product term a next b)
+  (define (iter a result)
+    (if (> a b)
+        result
+        (iter (next a) (* (term a) result))))
+  (iter a 1))
+#+end_src
+
+
+** Exercise 32
+
+    Show that sum and product (Exercise 1.31) are both special cases of a still more general notion called accumulate that combines
+    a collection of terms, using some general accumulation function:
+
+#+begin_src scheme
+(accumulate combiner null-value term a next b)
+#+end_src
+
+Accumulate takes as arguments the same term and range specifications as sum and product, together with a combiner procedure (of two arguments) that specifies how the current term is to be combined with the accumulation of the preceding terms and a null-value that specifies what base value to use when the terms run out. Write accumulate and show how sum and product can both be defined as simple calls to accumulate.
+
+If your accumulate procedure generates a recursive process, write one that generates an iterative process. If it generates an iterative process, write one that generates a recursive process.
+
+** Solution
+Using the bits developed in the previous exercise:
+
+#+begin_src scheme
+(define (accumulate combiner null-value term a next b)
+  (if (> a b)
+      null-value
+      (combiner (term a)
+         (accumulate combiner null-value term (next a) next b))))
+
+(define (accumulate-iter combiner null-value term a next b)
+  (define (iter a result)
+    (if (> a b)
+        result
+        (iter (next a) (combiner result (term a)))))
+  (iter a null-value))
+#+end_src
+
+Then
+
+#+begin_src scheme
+(define (sum term a next b)
+  (accumulate + 0 term a next b))
+
+(define (sum-iter term a next b)
+  (accumulate-iter + 0 term a next b))
+
+(define (product term a next b)
+  (accumulate * 1 term a next b))
+
+(define (product-iter term a next b)
+  (accumulate-iter * 1 term a next b))
+#+end_src
+
+
+** Exercise 33
+
+You can obtain an even more general version of accumulate (Exercise 1.32) by introducing the notion of a filter on the terms to be combined. That is, combine only those terms derived from values in the range that satisfy a specified condition. The resulting filtered-accumulate abstraction takes the same arguments as accumulate, together with an additional predicate of one argument that specifies the filter. Write filtered-accumulate as a procedure. Show how to express the following using filtered-accumulate:
+
+1. the sum of the squares of the prime numbers in the interval a to b (assuming that you have a prime? predicate already written)
+2. the product of all the positive integers less than n that are relatively prime to n (i.e., all positive integers i<n such that GCD(i,n)=1).
+
+*** Solution
+
+#+begin_src scheme
+
+;; filtered accumulate
+(define (filtered-accumulate predicate? combiner null-value term a next b)
+  (if (> a b)
+      null-value
+      (combiner
+       (if (predicate? a) (term a) null-value)
+       (filtered-accumulate predicate? combiner null-value term (next a) next b))))
+
+
+;; sum of squares of primes in an interval
+(define (inc n) (+ n 1))
+
+(define (sum-of-squares-prime a b)
+  (filtered-accumulate prime? + 0 square a inc b))
+
+
+;; product of all positive integers less than n that are relatively prime to n
+;; define the predicate to check for being relatively prime
+(define (relative-prime? i n)
+  (= (gcd i n) 1))
+
+(define (id x) x)
+
+;; predicate in filtered-accumulate only has one argument so we need some faffery
+;; to get access to the namespace to get n
+(define (product-of-relative-prime n)
+  (define (relative-prime? i)
+    (= (gcd i n) 1))
+  (filtered-accumulate relative-prime? * 1 identity 1 inc (- n 1)))
+#+end_src
+
+
+* Let and lambda
+
+** Exercise 34
+Suppose we define the procedure
+
+#+begin_src scheme
+(define (f g) (g 2))
+#+end_src
+
+Then we have
+
+#+begin_src scheme
+(f square)
+;; 4
+
+(f (lambda (z) (* z (+ z 1))))
+;; 6
+#+end_src
+
+What happens if we (perversely) ask the interpreter to evaluate the combination ~(f f)~? Explain.
+
+*** Solution
+
+The evaluation steps will be
+
+#+begin_src scheme
+(f f)
+(f 2)
+(2 2)
+#+end_src
+
+And will fail, since 2 is not an function.
+
+* Procedures as general methods
+
+** Exercise 35
+
+Show that the golden ratio φ is a fixed point of the transformation $x \mapsto 1 + \frac{1}{x}$, and use this fact to compute φ by means of the fixed-point procedure.
+
+*** Solution
+
+The fixed point for $x \mapsto 1+\frac{1}{x}$ is defined as:
+
+$$
+x =  1 + \frac{1}{x}
+$$
+
+Which we can reformulate as $x^2 - x - 1 = 0$. Using the standard discriminant approach of solving this we see
+
+$$ x = \frac{1+ \sqrt{5}}{2} = \varphi $$
+
+Now do it programatticaly.
+
+#+begin_src scheme
+(define tolerance 0.00001)
+
+(define (fixed-point f first-guess)
+  (define (close-enough? v1 v2)
+    (< (abs (- v1 v2))
+       tolerance))
+  (define (try guess)
+    (let ((next (f guess)))
+      (if (close-enough? guess next)
+          next
+          (try next))))
+  (try first-guess))
+
+(display (fixed-point (lambda (x) (+ 1 (/ 1 x))) 1.0))
+;; 1.6180327868852458
+#+end_src
+
+** Exercise 36
+
+Modify fixed-point so that it prints the sequence of approximations it generates, using the newline and display primitives shown in Exercise 1.22. Then find a solution to $x^x = 1000$ by finding a fixed point of $x \mapsto \frac{log(1000)}{log(x)}$. (Use Scheme’s primitive log procedure, which computes natural logarithms.) Compare the number of steps this takes with and without average damping. (Note that you cannot start fixed-point with a guess of 1, as this would cause division by log(1) = 0.)
+
+*** Solution
+
+Rewriting the above fixed-point definition to do what we need
+#+begin_src scheme
+(define (fixed-point f first-guess)
+  (define (close-enough? v1 v2)
+    (< (abs (- v1 v2))
+       tolerance))
+  (define (try guess)
+    (display guess) (newline)
+    (let ((next (f guess)))
+      (if (close-enough? guess next)
+          next
+          (try next))))
+  (try first-guess))
+
+;; undamped
+(display (fixed-point (lambda (x) (/ (log 1000) (log x))) 2))
+;; 2
+;; 9.965784284662087
+;; 3.004472209841214
+;; 6.279195757507157
+;; 3.759850702401539
+;; 5.215843784925895
+;; 4.182207192401397
+;; 4.8277650983445906
+;; 4.387593384662677
+;; 4.671250085763899
+;; 4.481403616895052
+;; 4.6053657460929
+;; 4.5230849678718865
+;; 4.577114682047341
+;; 4.541382480151454
+;; 4.564903245230833
+;; 4.549372679303342
+;; 4.559606491913287
+;; 4.552853875788271
+;; 4.557305529748263
+;; 4.554369064436181
+;; 4.556305311532999
+;; 4.555028263573554
+;; 4.555870396702851
+;; 4.555315001192079
+;; 4.5556812635433275
+;; 4.555439715736846
+;; 4.555599009998291
+;; 4.555493957531389
+;; 4.555563237292884
+;; 4.555517548417651
+;; 4.555547679306398
+;; 4.555527808516254
+;; 4.555540912917957
+;; 4.555532270803653
+
+
+;; damped
+(display (fixed-point (lambda (x) (average x (/ (log 1000) (log x)))) 2))
+
+;; 2
+;; 5.9828921423310435
+;; 4.922168721308343
+;; 4.628224318195455
+;; 4.568346513136242
+;; 4.5577305909237005
+;; 4.555909809045131
+;; 4.555599411610624
+;; 4.5555465521473675
+;; 4.555537551999825
+#+end_src
+
+Damping causes it to take a lot fewer steps to converge in this case.
+
+** Exercise 37
+
+I'm not writing that one out. Hot damn.
+
+*** recursive version
+
+#+begin_src scheme
+(define (cont-frac-recur n d k)
+  (define (recur i)
+    (if (= k i)
+        (/ (n i) (d i))
+        (/ (n i) (+ (d i) (recur (+ 1 i))))))
+  (recur 1))
+#+end_src
+
+Estimating $\frac{1}{\varphi}$
+
+|  k |             result |
+|----+--------------------|
+|  4 | 0.6000000000000001 |
+|  5 |              0.625 |
+|  6 | 0.6153846153846154 |
+|  7 | 0.6190476190476191 |
+|  8 | 0.6176470588235294 |
+|  9 | 0.6181818181818182 |
+| 10 | 0.6179775280898876 |
+| 11 | 0.6180555555555556 |
+| 12 | 0.6180257510729613 |
+
+Calculating $\frac{1}{\varphi}$ we get approximately 0.61803398875 so k must be at least 11 in order to have an approximation accurate to 4 decimal places.
+
+*** Iterative
+
+Start at the lowest fraction and work up:
+
+#+begin_src scheme
+(define (cont-frac-iter n d k)
+  (define (iter i result)
+    (if (= 0 i)
+        result
+        (iter (sub i) (/ (n i) (+ result (d i))))))
+  (iter (sub k) (/ (n k) (d k))))
+#+end_src
+
+
+Chapter completed.
+June 2025.

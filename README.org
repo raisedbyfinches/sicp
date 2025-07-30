@@ -1,0 +1,4 @@
+#+title: Structure and Interpretation of Computer Programs
+#+subtitle: Study group
+
+A group of us at Department for Business and Trade will be working through [[https://sarabander.github.io/sicp][SICP]]. This is my notes and exercises for that.
