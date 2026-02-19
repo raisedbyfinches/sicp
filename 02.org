@@ -466,3 +466,1565 @@ Identity in regular arithmetic is trivial. For example, if $x=5$ then every inst
 Now, taking this into the realm of interval arithmetic. If two $x$'s existed the value of one $x$ is not necessarily the same as another. For example, let us assume that is the interval $[3,10]$. Now $\frac{x}{x}$ could be $1$. That is, if it meant $\frac{3}{3}$ or $\frac{8}{8}$. However, its possible that it could mean $\frac{4}{9}$ or something else. These values are within the specified range and it is theoretically possible. The problem is, we don’t know what the values are.
 
 There is no obvious way, mathematically, to introduce identity into interval arithmetic.
+
+
+** Exercise 17
+Define a procedure =last-pair= that returns the list that contains only the last element of a given (nonempty) list:
+
+#+begin_src scheme
+(last-pair (list 23 72 149 34))
+(34)
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (last-pair lst)
+  (if (null? (cdr lst))
+      lst
+      (last-pair (cdr lst))))
+#+end_src
+
+** Exercise 18
+Define a procedure =reverse= that takes a list as argument and returns a list of the same elements in reverse order:
+
+#+begin_src scheme
+(reverse (list 1 4 9 16 25))
+(25 16 9 4 1)
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (reverse lst)
+  (define (reverse-iter lst acc)
+    (if (null? lst)
+        acc
+        (reverse-iter (cdr lst) (cons (car lst) acc))))
+  (reverse-iter lst '()))
+#+end_src
+
+** Exercise 19
+Consider the change-counting program of Section 1.2.2. It would be nice to be able to easily change the currency used by the program, so that we could compute the number of ways to change a British pound, for example. As the program is written, the knowledge of the currency is distributed partly into the procedure =first-denomination= and partly into the procedure =count-change= (which knows that there are five kinds of US coins). It would be nicer to be able to supply a list of coins to be used for making change.
+
+We want to rewrite the procedure =cc= so that its second argument is a list of the values of the coins to use rather than an integer specifying which coins to use. We then want to define each kind of currency as a list:
+
+#+begin_src scheme
+(define us-coins (list 50 25 10 5 1))
+(define uk-coins (list 100 50 20 10 5 2 1 0.5))
+#+end_src
+
+We could then call =cc= as follows:
+
+#+begin_src scheme
+(cc 100 us-coins)
+292
+#+end_src
+
+To do this will require changing the program =cc= somewhat. It will still have the same form, but it will access its second argument differently, as follows:
+
+#+begin_src scheme
+(define (cc amount coin-values)
+  (cond ((= amount 0) 1)
+        ((or (< amount 0) (no-more? coin-values)) 0)
+        (else
+         (+ (cc amount
+                (except-first-denomination coin-values))
+            (cc (- amount
+                   (first-denomination coin-values))
+                coin-values)))))
+#+end_src
+
+Define the procedures =first-denomination=, =except-first-denomination=, and =no-more?= in terms of primitive operations on list structures. Does the order of the list =coin-values= affect the answer produced by =cc=? Why or why not?
+
+*** Solution
+#+begin_src scheme
+(define (first-denomination coin-values)
+  (car coin-values))
+
+(define (except-first-denomination coin-values)
+  (cdr coin-values))
+
+(define (no-more? coin-values)
+  (null? coin-values))
+#+end_src
+
+The order of the list does not affect the answer produced by =cc=. The algorithm explores all combinations of coins regardless of the order they are presented — every possible combination will eventually be counted. The order may affect the efficiency (number of recursive calls), but not the final count.
+
+** Exercise 20
+The procedures =+=, =*=, and =list= take arbitrary numbers of arguments. One way to define such procedures is to use =define= with dotted-tail notation. In a procedure definition, a parameter list that has a dot before the last parameter name indicates that, when the procedure is called, the initial parameters (if any) will be bound to the initial arguments, and the final parameter's value will be a list of any remaining arguments (possibly empty). For instance, given the definition:
+
+#+begin_src scheme
+(define (f x y . z) z)
+#+end_src
+
+the procedure =f= can be called with two or more arguments. If we evaluate =(f 1 2 3 4 5 6)=, then in the body of =f=, =x= will be 1, =y= will be 2, and =z= will be the list =(3 4 5 6)=.
+
+Use this notation to write a procedure =same-parity= that takes one or more integers and returns a list of all the arguments that have the same even-odd parity as the first argument. For example:
+
+#+begin_src scheme
+(same-parity 1 2 3 4 5 6 7)
+(1 3 5 7)
+
+(same-parity 2 3 4 5 6 7)
+(2 4 6)
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (same-parity first . rest)
+  (define (parity-filter lst)
+    (cond ((null? lst) '())
+          ((= (remainder (car lst) 2) (remainder first 2))
+           (cons (car lst) (parity-filter (cdr lst))))
+          (else (parity-filter (cdr lst)))))
+  (cons first (parity-filter rest)))
+#+end_src
+
+** Exercise 21
+The procedure =square-list= takes a list of numbers as argument and returns a list of the squares of those numbers.
+
+#+begin_src scheme
+(square-list (list 1 2 3 4))
+(1 4 9 16)
+#+end_src
+
+Here are two different definitions of =square-list=. Complete both of them by filling in the missing expressions:
+
+#+begin_src scheme
+(define (square-list items)
+  (if (null? items)
+      '()
+      (cons <??> <??>)))
+
+(define (square-list items)
+  (map <??> <??>))
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (square-list items)
+  (if (null? items)
+      '()
+      (cons (* (car items) (car items))
+            (square-list (cdr items)))))
+
+(define (square-list items)
+  (map (lambda (x) (* x x)) items))
+#+end_src
+
+** Exercise 22
+Louis Reasoner tries to rewrite the first =square-list= procedure of Exercise 2.21 so that it evolves an iterative process:
+
+#+begin_src scheme
+(define (square-list items)
+  (define (iter things answer)
+    (if (null? things)
+        answer
+        (iter (cdr things)
+              (cons (square (car things))
+                    answer))))
+  (iter items '()))
+#+end_src
+
+Unfortunately, defining =square-list= this way produces the answer list in the reverse order of the one desired. Louis tries to fix his bug by interchanging the arguments to =cons=:
+
+#+begin_src scheme
+(define (square-list items)
+  (define (iter things answer)
+    (if (null? things)
+        answer
+        (iter (cdr things)
+              (cons answer
+                    (square (car things))))))
+  (iter items '()))
+#+end_src
+
+This doesn't work either. Explain.
+
+*** Solution
+The first version produces a reversed list because =cons= prepends each new squared element to the front of the accumulator. Since elements are processed left to right, each element ends up before all previously processed elements, yielding a reversed result.
+
+The second version doesn't fix the problem because swapping the arguments to =cons= doesn't change the order of processing — it just builds an improper nested list structure rather than a flat list. Instead of =(cons new-element list)=, Louis writes =(cons list new-element)=, which places the growing list as the =car= and the new element as the =cdr=, producing a structure like =(((() . 1) . 4) . 9)= rather than =(1 4 9)=.
+
+The correct iterative approach is to either reverse the result at the end, or build the list in reverse using =cons= and then apply =reverse=:
+
+#+begin_src scheme
+(define (square-list items)
+  (define (iter things answer)
+    (if (null? things)
+        (reverse answer)
+        (iter (cdr things)
+              (cons (* (car things) (car things))
+                    answer))))
+  (iter items '()))
+#+end_src
+
+** Exercise 23
+The procedure =for-each= is similar to =map=. It takes as arguments a procedure and a list of elements. However, rather than forming a list of the results, =for-each= just applies the procedure to each of the elements in turn, from left to right. The values returned by applying the procedure to the elements are not used at all — =for-each= is used with procedures that perform an effect, such as printing. For example:
+
+#+begin_src scheme
+(for-each (lambda (x)
+            (newline)
+            (display x))
+          (list 57 321 88))
+57
+321
+88
+#+end_src
+
+The value returned by the call to =for-each= (not illustrated above) can be anything. Give an implementation of =for-each=.
+
+*** Solution
+#+begin_src scheme
+(define (for-each proc lst)
+  (cond ((null? lst) #t)
+        (else
+         (proc (car lst))
+         (for-each proc (cdr lst)))))
+#+end_src
+
+** Exercise 24
+Suppose we evaluate the expression =(list 1 (list 2 (list 3 4)))=. Give the result printed by the interpreter, the corresponding box-and-pointer structure, and the interpretation of this as a tree.
+
+*** Solution
+The interpreter prints:
+
+#+begin_src scheme
+(1 (2 (3 4)))
+#+end_src
+
+Box-and-pointer structure:
+
+#+begin_src
+[*|*]-->[*|*]-->nil
+ |       |
+ 1      [*|*]-->[*|*]-->nil
+         |       |
+         2      [*|*]-->[*|*]-->nil
+                 |       |
+                 3       4
+#+end_src
+
+As a tree:
+
+#+begin_src
+(1 (2 (3 4)))
+    |
+   / \
+  1  (2 (3 4))
+       |
+      / \
+     2  (3 4)
+          |
+         / \
+        3   4
+#+end_src
+
+** Exercise 25
+Give combinations of =car= and =cdr= that will pick 7 from each of the following lists:
+
+#+begin_src scheme
+(1 3 (5 7) 9)
+((7))
+(1 (2 (3 (4 (5 (6 7))))))
+#+end_src
+
+*** Solution
+#+begin_src scheme
+; (1 3 (5 7) 9)
+(car (cdr (car (cdr (cdr '(1 3 (5 7) 9))))))
+; ie:
+(cadaddr '(1 3 (5 7) 9))
+; but we have to be careful with these expansions as we are only guaranteed
+; to have correct implementations of this contraction for 4 inside actions
+; so this version might not work in all lisp implementations!
+; then this would have to be:
+(cadadr (cdr '(1 3 (5 7) 9)))
+
+; ((7))
+(caar '((7)))
+
+; (1 (2 (3 (4 (5 (6 7))))))
+(car (cdr (car (cdr (car (cdr (car (cdr (car (cdr (car (cdr '(1 (2 (3 (4 (5 (6 7))))))))))))))))))
+; or more succinctly
+(cadadadadadadr '(1 (2 (3 (4 (5 (6 7)))))))
+; or with the restriction to 4 entries for all lisp compliance...
+(cadadr (cadadr (cadadr '(1 (2 (3 (4 (5 (6 7)))))))))
+#+end_src
+
+** Exercise 26
+Suppose we define =x= and =y= to be two lists:
+
+#+begin_src scheme
+(define x (list 1 2 3))
+(define y (list 4 5 6))
+#+end_src
+
+What result is printed by the interpreter in response to evaluating each of the following expressions:
+
+#+begin_src scheme
+(append x y)
+(cons x y)
+(list x y)
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(append x y)
+; (1 2 3 4 5 6)
+
+(cons x y)
+; ((1 2 3) 4 5 6)
+
+(list x y)
+; ((1 2 3) (4 5 6))
+#+end_src
+
+** Exercise 27
+Modify your =reverse= procedure of Exercise 2.18 to produce a =deep-reverse= procedure that takes a list as argument and returns as its value the list with its elements reversed and with all sublists deep-reversed as well. For example:
+
+#+begin_src scheme
+(define x (list (list 1 2) (list 3 4)))
+
+x
+((1 2) (3 4))
+
+(reverse x)
+((3 4) (1 2))
+
+(deep-reverse x)
+((4 3) (2 1))
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (deep-reverse lst)
+  (if (pair? lst)
+      (reverse (map deep-reverse lst))
+      lst))
+#+end_src
+
+** Exercise 28
+Write a procedure =fringe= that takes as argument a tree (represented as a list) and returns a list whose elements are all the leaves of the tree arranged in left-to-right order. For example:
+
+#+begin_src scheme
+(define x (list (list 1 2) (list 3 4)))
+
+(fringe x)
+(1 2 3 4)
+
+(fringe (list x x))
+(1 2 3 4 1 2 3 4)
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (fringe tree)
+  (cond ((null? tree) '())
+        ((pair? tree)
+         (append (fringe (car tree))
+                 (fringe (cdr tree))))
+        (else (list tree))))
+#+end_src
+
+** Exercise 29
+A binary mobile consists of two branches, a left branch and a right branch. Each branch is a rod of a certain length, from which hangs either a weight or another binary mobile. We can represent a binary mobile using compound data by constructing it from two branches (for example, using =list=):
+
+#+begin_src scheme
+(define (make-mobile left right)
+  (list left right))
+#+end_src
+
+A branch is constructed from a =length= (which must be a number) together with a =structure=, which may be either a number (representing a simple weight) or another mobile:
+
+#+begin_src scheme
+(define (make-branch length structure)
+  (list length structure))
+#+end_src
+
+a. Write the corresponding selectors =left-branch=, =right-branch=, which return the branches of a mobile, and =branch-length= and =branch-structure=, which return the components of a branch.
+
+b. Using your selectors, define a procedure =total-weight= that returns the total weight of a mobile.
+
+c. A mobile is said to be /balanced/ if the torque applied by its top-left branch is equal to that applied by its top-right branch (that is, if the length of the left rod multiplied by the weight hanging from that rod is equal to the corresponding product for the right side), and if each of the submobiles hanging off its branches is balanced. Design a predicate that tests whether a binary mobile is balanced.
+
+d. Suppose we change the representation of mobiles so that the constructors are:
+
+#+begin_src scheme
+(define (make-mobile left right) (cons left right))
+(define (make-branch length structure) (cons length structure))
+#+end_src
+
+How much do you need to change your programs to convert to the new representation?
+
+*** Solution
+#+begin_src scheme
+; Part a
+(define (left-branch mobile) (car mobile))
+(define (right-branch mobile) (cadr mobile))
+(define (branch-length branch) (car branch))
+(define (branch-structure branch) (cadr branch))
+
+; Part b
+(define (total-weight mobile)
+  (if (not (pair? mobile))
+      mobile
+      (+ (branch-weight (left-branch mobile))
+         (branch-weight (right-branch mobile)))))
+
+(define (branch-weight branch)
+  (let ((structure (branch-structure branch)))
+    (if (pair? structure)
+        (total-weight structure)
+        structure)))
+
+; Part c
+(define (balanced? mobile)
+  (if (not (pair? mobile))
+      #t
+      (let ((left (left-branch mobile))
+            (right (right-branch mobile)))
+        (and (= (* (branch-length left) (branch-weight left))
+                (* (branch-length right) (branch-weight right)))
+             (balanced? (branch-structure left))
+             (balanced? (branch-structure right))))))
+
+; Part d
+; With the cons-based representation, only the selectors need to change:
+(define (right-branch mobile) (cdr mobile))
+(define (branch-structure branch) (cdr branch))
+; All other procedures remain identical because they only use the selectors.
+#+end_src
+
+** Exercise 30
+Define a procedure =square-tree= analogous to the =square-list= procedure of Exercise 2.21. That is, =square-tree= should behave as follows:
+
+#+begin_src scheme
+(square-tree
+ (list 1
+       (list 2 (list 3 4) 5)
+       (list 6 7)))
+(1 (4 (9 16) 25) (36 49))
+#+end_src
+
+Define =square-tree= both directly (i.e., without using any higher-order procedures) and also by using =map= and recursion.
+
+*** Solution
+#+begin_src scheme
+; Direct recursive definition
+(define (square-tree tree)
+  (cond ((null? tree) '())
+        ((pair? tree)
+         (cons (square-tree (car tree))
+               (square-tree (cdr tree))))
+        (else (* tree tree))))
+
+; Using map and recursion
+(define (square-tree tree)
+  (map (lambda (sub-tree)
+         (if (pair? sub-tree)
+             (square-tree sub-tree)
+             (* sub-tree sub-tree)))
+       tree))
+#+end_src
+
+** Exercise 31
+Abstract your answer to Exercise 2.30 to produce a procedure =tree-map= with the property that =square-tree= could be defined as:
+
+#+begin_src scheme
+(define (square-tree tree) (tree-map square tree))
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (tree-map proc tree)
+  (map (lambda (sub-tree)
+         (if (pair? sub-tree)
+             (tree-map proc sub-tree)
+             (proc sub-tree)))
+       tree))
+
+(define (square-tree tree) (tree-map (lambda (x) (* x x)) tree))
+#+end_src
+
+** Exercise 32
+We can represent a set as a list of distinct elements, and we can represent the set of all subsets of the set as a list of lists. For example, if the set is =(1 2 3)=, then the set of all subsets is =(() (3) (2) (2 3) (1) (1 3) (1 2) (1 2 3))=. Complete the following definition of a procedure that generates the set of subsets of a set and give a clear explanation of why it works:
+
+#+begin_src scheme
+(define (subsets s)
+  (if (null? s)
+      (list '())
+      (let ((rest (subsets (cdr s))))
+        (append rest (map <??> rest)))))
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (subsets s)
+  (if (null? s)
+      (list '())
+      (let ((rest (subsets (cdr s))))
+        (append rest (map (lambda (subset) (cons (car s) subset)) rest)))))
+#+end_src
+
+This works because every subset of a set S either contains the first element or it doesn't. The subsets that do /not/ contain the first element are exactly the subsets of the remaining elements (=rest=). The subsets that /do/ contain the first element are those same subsets each with the first element prepended. So the full set of subsets is the union of these two groups, which is what =append= and =map= compute here.
+
+** Exercise 33
+Fill in the missing expressions to complete the following definitions of some basic list-manipulation operations as accumulations:
+
+#+begin_src scheme
+(define (map p sequence)
+  (accumulate (lambda (x y) <??>) '() sequence))
+
+(define (append seq1 seq2)
+  (accumulate cons <??> <??>))
+
+(define (length sequence)
+  (accumulate <??> 0 sequence))
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (accumulate op initial sequence)
+  (if (null? sequence)
+      initial
+      (op (car sequence)
+          (accumulate op initial (cdr sequence)))))
+
+(define (map p sequence)
+  (accumulate (lambda (x y) (cons (p x) y)) '() sequence))
+
+(define (append seq1 seq2)
+  (accumulate cons seq2 seq1))
+
+(define (length sequence)
+  (accumulate (lambda (x y) (+ 1 y)) 0 sequence))
+#+end_src
+
+** Exercise 34
+Evaluating a polynomial in x at a given value of x can be formulated as an accumulation. We evaluate the polynomial
+
+$$a_n x^n + a_{n-1} x^{n-1} + \cdots + a_1 x + a_0$$
+
+using Horner's rule, which structures the computation as
+
+$$(\cdots (a_n x + a_{n-1}) x + \cdots + a_1) x + a_0$$
+
+In other words, we start with $a_n$, multiply by x, add $a_{n-1}$, multiply by x, and so on, until we reach $a_0$. Fill in the following template to produce a procedure that evaluates a polynomial using Horner's rule. Assume that the coefficients of the polynomial are arranged in a sequence, from $a_0$ through $a_n$:
+
+#+begin_src scheme
+(define (horner-eval x coefficient-sequence)
+  (accumulate (lambda (this-coeff higher-terms) <??>)
+              0
+              coefficient-sequence))
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (horner-eval x coefficient-sequence)
+  (accumulate (lambda (this-coeff higher-terms)
+                (+ this-coeff (* x higher-terms)))
+              0
+              coefficient-sequence))
+#+end_src
+
+** Exercise 35
+Redefine =count-leaves= from Section 2.2.2 as an accumulation:
+
+#+begin_src scheme
+(define (count-leaves t)
+  (accumulate <??> <??> (map <??> <??>)))
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (count-leaves t)
+  (accumulate +
+              0
+              (map (lambda (subtree)
+                     (if (pair? subtree)
+                         (count-leaves subtree)
+                         1))
+                   t)))
+#+end_src
+
+** Exercise 36
+The procedure =accumulate-n= is similar to =accumulate= except that it takes as its third argument a sequence of sequences, which are all assumed to have the same number of elements. It applies the designated accumulation procedure to combine all the first elements of the sequences, all the second elements of the sequences, and so on, and returns a sequence of the results. For instance, if =s= is a sequence containing four sequences, =((1 2 3) (4 5 6) (7 8 9) (10 11 12))=, then the value of =(accumulate-n + 0 s)= should be the sequence =(22 26 30)=. Fill in the missing expressions in the following definition of =accumulate-n=:
+
+#+begin_src scheme
+(define (accumulate-n op init seqs)
+  (if (null? (car seqs))
+      '()
+      (cons (accumulate op init <??>)
+            (accumulate-n op init <??>))))
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (accumulate-n op init seqs)
+  (if (null? (car seqs))
+      '()
+      (cons (accumulate op init (map car seqs))
+            (accumulate-n op init (map cdr seqs)))))
+#+end_src
+
+** Exercise 37
+Suppose we represent vectors $v = (v_i)$ as sequences of numbers, and matrices $m = (m_{ij})$ as sequences of vectors (the rows of the matrix). For example, the matrix
+
+$$\begin{pmatrix} 1 & 2 & 3 & 4 \\ 4 & 5 & 6 & 6 \\ 6 & 7 & 8 & 9 \end{pmatrix}$$
+
+is represented as the sequence =((1 2 3 4) (4 5 6 6) (6 7 8 9))=. With this representation, we can use sequence operations to concisely express the basic matrix and vector operations. These operations (which are described in any book on matrix algebra) are the following:
+
+Fill in the missing expressions in the following procedures for computing the other matrix operations. (The procedure =accumulate-n= is defined in Exercise 2.36.)
+
+#+begin_src scheme
+(define (dot-product v w)
+  (accumulate + 0 (map * v w)))
+
+(define (matrix-*-vector m v)
+  (map <??> m))
+
+(define (transpose mat)
+  (accumulate-n <??> <??> mat))
+
+(define (matrix-*-matrix m n)
+  (let ((cols (transpose n)))
+    (map <??> m)))
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (dot-product v w)
+  (accumulate + 0 (map * v w)))
+
+(define (matrix-*-vector m v)
+  (map (lambda (row) (dot-product row v)) m))
+
+(define (transpose mat)
+  (accumulate-n cons '() mat))
+
+(define (matrix-*-matrix m n)
+  (let ((cols (transpose n)))
+    (map (lambda (row)
+           (map (lambda (col) (dot-product row col)) cols))
+         m)))
+#+end_src
+
+** Exercise 38
+The =accumulate= procedure is also known as =fold-right=, because it combines the first element of the sequence with the result of combining all the elements to the right. There is also a =fold-left=, which is similar to =fold-right=, except that it combines elements working in the opposite direction:
+
+#+begin_src scheme
+(define (fold-left op initial sequence)
+  (define (iter result rest)
+    (if (null? rest)
+        result
+        (iter (op result (car rest))
+              (cdr rest))))
+  (iter initial sequence))
+#+end_src
+
+What are the values of the following expressions?
+
+#+begin_src scheme
+(fold-right / 1 (list 1 2 3))
+(fold-left / 1 (list 1 2 3))
+(fold-right list '() (list 1 2 3))
+(fold-left list '() (list 1 2 3))
+#+end_src
+
+Give a property that =op= should satisfy to guarantee that =fold-right= and =fold-left= will produce the same values for any sequence.
+
+*** Solution
+#+begin_src scheme
+(fold-right / 1 (list 1 2 3))
+; 3/2  — computes (/ 1 (/ 2 (/ 3 1))) = (/ 1 (/ 2 3)) = (/ 1 2/3) = 3/2
+
+(fold-left / 1 (list 1 2 3))
+; 1/6  — computes (/ (/ (/ 1 1) 2) 3) = (/ (/ 1 2) 3) = 1/6
+
+(fold-right list '() (list 1 2 3))
+; (1 (2 (3 ())))
+
+(fold-left list '() (list 1 2 3))
+; (((() 1) 2) 3)
+#+end_src
+
+For =fold-right= and =fold-left= to produce the same result for any sequence, =op= must be commutative and associative. Commutativity ensures the order of arguments to =op= doesn't matter, and associativity ensures the grouping of operations doesn't matter.
+
+** Exercise 39
+Complete the following definitions of =reverse= (Exercise 2.18) in terms of =fold-right= and =fold-left= from Exercise 2.38:
+
+#+begin_src scheme
+(define (reverse sequence)
+  (fold-right (lambda (x y) <??>) '() sequence))
+
+(define (reverse sequence)
+  (fold-left (lambda (x y) <??>) '() sequence))
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (reverse sequence)
+  (fold-right (lambda (x y) (append y (list x))) '() sequence))
+
+(define (reverse sequence)
+  (fold-left (lambda (x y) (cons y x)) '() sequence))
+#+end_src
+
+
+** Exercise 40
+Define a procedure =unique-pairs= that, given an integer n, generates the sequence of pairs (i, j) with 1 ≤ j < i ≤ n. Use =unique-pairs= to simplify the definition of =prime-sum-pairs= given above.
+
+*** Solution
+#+begin_src scheme
+(define (unique-pairs n)
+  (flatmap (lambda (i)
+             (map (lambda (j) (list i j))
+                  (enumerate-interval 1 (- i 1))))
+           (enumerate-interval 1 n)))
+
+(define (prime-sum-pairs n)
+  (map make-pair-sum
+       (filter prime-sum?
+               (unique-pairs n))))
+#+end_src
+
+Where the supporting procedures are:
+
+#+begin_src scheme
+(define (enumerate-interval low high)
+  (if (> low high)
+      '()
+      (cons low (enumerate-interval (+ low 1) high))))
+
+(define (flatmap proc seq)
+  (accumulate append '() (map proc seq)))
+
+(define (prime-sum? pair)
+  (prime? (+ (car pair) (cadr pair))))
+
+(define (make-pair-sum pair)
+  (list (car pair) (cadr pair) (+ (car pair) (cadr pair))))
+#+end_src
+
+** Exercise 41
+Write a procedure to find all ordered triples of distinct positive integers i, j, and k less than or equal to a given integer n that sum to a given integer s.
+
+*** Solution
+#+begin_src scheme
+(define (unique-triples n)
+  (flatmap (lambda (i)
+             (flatmap (lambda (j)
+                        (map (lambda (k) (list i j k))
+                             (enumerate-interval 1 (- j 1))))
+                      (enumerate-interval 1 (- i 1))))
+           (enumerate-interval 1 n)))
+
+(define (triples-summing-to n s)
+  (filter (lambda (triple)
+            (= (+ (car triple) (cadr triple) (caddr triple)) s))
+          (unique-triples n)))
+#+end_src
+
+** Exercise 42
+The "eight-queens puzzle" asks how to place eight queens on a chessboard so that no queen is in check from any other (i.e., no two queens are in the same row, column, or diagonal). One way to solve the puzzle is to work across the board, placing a queen in each column. Once we have placed k - 1 queens, we must place the kth queen in a position where it does not check any of the queens already on the board. We can formulate this approach recursively: assume that we have already generated the sequence of all possible ways to place k - 1 queens in the first k - 1 columns of the board. For each of these ways, generate an extended set of positions by placing a queen in each row of the kth column. Now filter these, keeping only the positions for which the queen in the kth column is safe with respect to the other queens. This produces the sequence of all ways to place k queens in the first k columns.
+
+Using this solution, implement the following procedure, where =rest-of-queens= is a way of placing k - 1 queens in the first k - 1 columns, and =new-row= is the proposed row in which to place the queen for the kth column:
+
+#+begin_src scheme
+(define (queens board-size)
+  (define (queen-cols k)
+    (if (= k 0)
+        (list empty-board)
+        (filter
+         (lambda (positions) (safe? k positions))
+         (flatmap
+          (lambda (rest-of-queens)
+            (map (lambda (new-row)
+                   (adjoin-position
+                    new-row k rest-of-queens))
+                 (enumerate-interval 1 board-size)))
+          (queen-cols (- k 1))))))
+  (queen-cols board-size))
+#+end_src
+
+In this formulation, =adjoin-position= is a procedure that adjoins a new row-column position to a set of positions, and =empty-board= represents an empty set of positions. You must also write the procedure =safe?=, which determines for a set of positions whether the queen in the kth column is safe with respect to the others. (Note that we need only check whether the new queen is safe — the other queens are already guaranteed safe with respect to each other.)
+
+*** Solution
+#+begin_src scheme
+(define empty-board '())
+
+(define (adjoin-position new-row k rest-of-queens)
+  (cons (list new-row k) rest-of-queens))
+
+(define (safe? k positions)
+  (let ((new-queen (car positions))
+        (rest (cdr positions)))
+    (let ((new-row (car new-queen))
+          (new-col (cadr new-queen)))
+      (define (checks? queen)
+        (let ((row (car queen))
+              (col (cadr queen)))
+          (or (= row new-row)
+              (= (abs (- row new-row))
+                 (abs (- col new-col))))))
+      (null? (filter checks? rest)))))
+#+end_src
+
+Each position is stored as a =(row col)= pair. The =safe?= procedure checks the newly placed queen (the =car= of =positions=, since we =cons=ed it on first) against all previously placed queens, ensuring no two share the same row or diagonal. Column conflicts are impossible by construction since each queen is placed in a distinct column.
+
+** Exercise 43
+Louis Reasoner is having a terrible time doing Exercise 2.42. His =queens= procedure seems to work, but it runs extremely slowly. (Louis never does manage to wait long enough for it to solve even the 6-queens puzzle.) When Louis asks Eva Lu Ator for help, she points out that he has interchanged the order of the nested mappings in the =flatmap=, writing it as:
+
+#+begin_src scheme
+(flatmap
+ (lambda (new-row)
+   (map (lambda (rest-of-queens)
+          (adjoin-position new-row k rest-of-queens))
+        (queen-cols (- k 1))))
+ (enumerate-interval 1 board-size))
+#+end_src
+
+Explain why this interchange makes the program run slowly. Estimate how many times queens is solved in the original program compared to Louis's version.
+
+*** Solution
+In the correct version, =(queen-cols (- k 1))= is evaluated exactly once per call to =queen-cols k=, and its result is reused across all rows in =enumerate-interval=. The structure is: compute all valid placements for k-1 queens once, then for each of those placements try all new rows.
+
+In Louis's version, =(queen-cols (- k 1))= appears inside the lambda passed to =flatmap=, which means it is called once for each value in =(enumerate-interval 1 board-size)= — that is, =board-size= times per level. Since this is recursive, the redundant computation compounds at every level.
+
+For a board of size n, the original program computes =(queen-cols k)= exactly once for each k from 0 to n, giving n+1 total calls. Louis's version computes =(queen-cols (- k 1))= n times each time =(queen-cols k)= is called. This means =(queen-cols k)= is called $n^{n-k}$ times, and the total number of calls grows as $O(n^n)$ rather than $O(n)$. For n=8 this means Louis's program does on the order of $8^8 = 16{,}777{,}216$ times more work.
+
+** Exercise 44
+Define the procedure =up-split= used by =corner-split=. It is similar to =right-split=, except that it switches the roles of =below= and =beside=:
+
+*** Solution
+#+begin_src scheme
+(define (up-split painter n)
+  (if (= n 0)
+      painter
+      (let ((smaller (up-split painter (- n 1))))
+        (below painter (beside smaller smaller)))))
+#+end_src
+
+** Exercise 45
+=right-split= and =up-split= can be expressed as instances of a general splitting operation. Define a procedure =split= with the property that evaluating:
+
+#+begin_src scheme
+(define right-split (split beside below))
+(define up-split (split below beside))
+#+end_src
+
+produces procedures with the same behaviors as the ones already defined.
+
+*** Solution
+#+begin_src scheme
+(define (split primary-combiner secondary-combiner)
+  (lambda (painter n)
+    (if (= n 0)
+        painter
+        (let ((smaller ((split primary-combiner secondary-combiner)
+                        painter
+                        (- n 1))))
+          (primary-combiner painter
+                            (secondary-combiner smaller smaller))))))
+#+end_src
+
+** Exercise 46
+A two-dimensional vector v running from the origin to a point can be represented as a pair consisting of an x-coordinate and a y-coordinate. Implement a data abstraction for vectors by giving a constructor =make-vect= and corresponding selectors =xcor-vect= and =ycor-vect=. In terms of your selectors and constructor, implement procedures =add-vect=, =sub-vect=, and =scale-vect= that perform the operations:
+
+#+begin_src
+addition:       (x1, y1) + (x2, y2) = (x1+x2, y1+y2)
+subtraction:    (x1, y1) - (x2, y2) = (x1-x2, y1-y2)
+scaling:        s * (x, y)           = (sx, sy)
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(define (make-vect x y) (cons x y))
+(define (xcor-vect v) (car v))
+(define (ycor-vect v) (cdr v))
+
+(define (add-vect v1 v2)
+  (make-vect (+ (xcor-vect v1) (xcor-vect v2))
+             (+ (ycor-vect v1) (ycor-vect v2))))
+
+(define (sub-vect v1 v2)
+  (make-vect (- (xcor-vect v1) (xcor-vect v2))
+             (- (ycor-vect v1) (ycor-vect v2))))
+
+(define (scale-vect s v)
+  (make-vect (* s (xcor-vect v))
+             (* s (ycor-vect v))))
+#+end_src
+
+** Exercise 47
+Here are two possible constructors for frames:
+
+#+begin_src scheme
+(define (make-frame origin edge1 edge2)
+  (list origin edge1 edge2))
+
+(define (make-frame origin edge1 edge2)
+  (cons origin (cons edge1 edge2)))
+#+end_src
+
+For each constructor supply the appropriate selectors to produce an implementation for frames.
+
+*** Solution
+#+begin_src scheme
+; For the list-based constructor
+(define (make-frame origin edge1 edge2)
+  (list origin edge1 edge2))
+
+(define (origin-frame frame) (car frame))
+(define (edge1-frame frame) (cadr frame))
+(define (edge2-frame frame) (caddr frame))
+
+; For the cons-based constructor
+(define (make-frame origin edge1 edge2)
+  (cons origin (cons edge1 edge2)))
+
+(define (origin-frame frame) (car frame))
+(define (edge1-frame frame) (cadr frame))
+(define (edge2-frame frame) (cddr frame))
+#+end_src
+
+The only difference is =edge2-frame=: in the list-based version, the third element is accessed with =caddr=, while in the cons-based version the second =cdr= does not unwrap another list, so =cddr= directly gives the edge2 vector.
+
+** Exercise 48
+A directed line segment in the plane can be represented as a pair of vectors — the vector running from the origin to the start-point of the segment, and the vector running from the origin to the end-point of the segment. Use your vector representation from Exercise 2.46 to define a representation for segments with a constructor =make-segment= and selectors =start-segment= and =end-segment=.
+
+*** Solution
+#+begin_src scheme
+(define (make-segment start end) (cons start end))
+(define (start-segment segment) (car segment))
+(define (end-segment segment) (cdr segment))
+#+end_src
+
+** Exercise 49
+Use =segments->painter= to define the following primitive painters:
+
+a. The painter that draws the outline of the designated frame.
+b. The painter that draws an "X" by connecting opposite corners of the frame.
+c. The painter that draws a diamond shape by connecting the midpoints of the sides of the frame.
+d. The =wave= painter.
+
+*** Solution
+#+begin_src scheme
+; Supporting helpers
+(define (make-vect x y) (cons x y))
+(define (segments->painter segment-list)
+  (lambda (frame)
+    (for-each
+     (lambda (segment)
+       (draw-line
+        ((frame-coord-map frame) (start-segment segment))
+        ((frame-coord-map frame) (end-segment segment))))
+     segment-list)))
+
+; a. Frame outline
+(define outline-painter
+  (segments->painter
+   (list (make-segment (make-vect 0 0) (make-vect 1 0))
+         (make-segment (make-vect 1 0) (make-vect 1 1))
+         (make-segment (make-vect 1 1) (make-vect 0 1))
+         (make-segment (make-vect 0 1) (make-vect 0 0)))))
+
+; b. X across the frame
+(define x-painter
+  (segments->painter
+   (list (make-segment (make-vect 0 0) (make-vect 1 1))
+         (make-segment (make-vect 1 0) (make-vect 0 1)))))
+
+; c. Diamond connecting midpoints of sides
+(define diamond-painter
+  (segments->painter
+   (list (make-segment (make-vect 0.5 0) (make-vect 1 0.5))
+         (make-segment (make-vect 1 0.5) (make-vect 0.5 1))
+         (make-segment (make-vect 0.5 1) (make-vect 0 0.5))
+         (make-segment (make-vect 0 0.5) (make-vect 0.5 0)))))
+
+; d. Wave painter (simplified schematic figure)
+(define wave-painter
+  (segments->painter
+   (list
+    ; Left leg
+    (make-segment (make-vect 0.25 0)   (make-vect 0.35 0.5))
+    (make-segment (make-vect 0.35 0.5) (make-vect 0.3  0.6))
+    ; Right leg
+    (make-segment (make-vect 0.75 0)   (make-vect 0.65 0.5))
+    (make-segment (make-vect 0.65 0.5) (make-vect 0.7  0.6))
+    ; Body / torso
+    (make-segment (make-vect 0.3  0.6) (make-vect 0.4  0.5))
+    (make-segment (make-vect 0.7  0.6) (make-vect 0.6  0.5))
+    (make-segment (make-vect 0.4  0.5) (make-vect 0.6  0.5))
+    ; Left arm
+    (make-segment (make-vect 0.3  0.6) (make-vect 0    0.8))
+    ; Right arm
+    (make-segment (make-vect 0.7  0.6) (make-vect 1    0.8))
+    ; Head
+    (make-segment (make-vect 0.4  0.5) (make-vect 0.4  0.8))
+    (make-segment (make-vect 0.6  0.5) (make-vect 0.6  0.8))
+    (make-segment (make-vect 0.4  0.8) (make-vect 0.6  0.8)))))
+#+end_src
+
+Note that the =wave= painter (part d) is a schematic approximation — the book's original wave figure is a complex hand-drawn shape, so any segment-based version will be a stylized simplification.
+
+** Exercise 50
+Define the transformation =flip-horiz=, which flips painters horizontally, and transformations that rotate painters counterclockwise by 180 degrees and 270 degrees.
+
+*** Solution
+#+begin_src scheme
+; flip-horiz reflects across the vertical center line:
+; maps (x, y) -> (1-x, y)
+(define (flip-horiz painter)
+  (transform-painter painter
+                     (make-vect 1.0 0.0)   ; new origin
+                     (make-vect 0.0 0.0)   ; new end of edge1
+                     (make-vect 1.0 1.0))) ; new end of edge2
+
+; rotate 180 degrees (= flip-vert composed with flip-horiz):
+; maps (x, y) -> (1-x, 1-y)
+(define (rotate180 painter)
+  (transform-painter painter
+                     (make-vect 1.0 1.0)
+                     (make-vect 0.0 1.0)
+                     (make-vect 1.0 0.0)))
+
+; rotate 270 degrees counterclockwise (= 90 degrees clockwise):
+; maps (x, y) -> (y, 1-x)
+(define (rotate270 painter)
+  (transform-painter painter
+                     (make-vect 0.0 1.0)
+                     (make-vect 0.0 0.0)
+                     (make-vect 1.0 1.0)))
+#+end_src
+
+Each transformation is specified by supplying the new origin and the new endpoints of the two frame edges, effectively describing where the unit square corners map to in the transformed frame.
+
+** Exercise 51
+Define the =below= operation for painters. =below= takes two painters as arguments. The resulting painter, given a frame, draws with the first painter in the bottom half of the frame and with the second painter in the top half. Define =below= in two different ways — first by writing a procedure that is analogous to the =beside= procedure given above, and second in terms of =beside= and suitable rotation operations as in Exercise 2.50.
+
+*** Solution
+#+begin_src scheme
+; Direct definition, analogous to beside
+(define (below painter1 painter2)
+  (let ((split-point (make-vect 0.0 0.5)))
+    (let ((paint-bottom
+           (transform-painter painter1
+                              (make-vect 0.0 0.0)
+                              (make-vect 1.0 0.0)
+                              split-point))
+          (paint-top
+           (transform-painter painter2
+                              split-point
+                              (make-vect 1.0 0.5)
+                              (make-vect 0.0 1.0))))
+      (lambda (frame)
+        (paint-bottom frame)
+        (paint-top frame)))))
+
+; In terms of beside and rotations
+(define (below painter1 painter2)
+  (rotate90 (beside (rotate270 painter1)
+                    (rotate270 painter2))))
+#+end_src
+
+The second definition works by rotating both painters 270° (so "up" becomes "right"), placing them side by side with =beside=, then rotating the whole result 90° to restore the original orientation — with painter1 now on the bottom and painter2 on top.
+
+* Symbolic Data
+
+This is one of my favourite sections in the whole book. Doing symbolic differentiation in lisp is fun.
+
+** Exercise 52
+Make changes to the square limit of =wave= shown in Figure 2.9 by working at each of the levels described below. In particular:
+
+a. Add some segments to the primitive =wave= painter of Exercise 2.49 (to add a smile, for example).
+b. Change the pattern constructed by =corner-split= (for example, by using only one copy of the =up-split= and =right-split= images instead of two).
+c. Modify the version of =square-limit= that uses =square-of-four= so as to assemble the corners in a different pattern. (For example, you might make the big Mr. Rogers look outward from each corner of the square.)
+
+*** Solution
+#+begin_src scheme
+; a. Adding a smile to the wave painter from Exercise 2.49
+(define wave-with-smile
+  (segments->painter
+   (append
+    ; All original wave segments ...
+    (list
+     (make-segment (make-vect 0.25 0)   (make-vect 0.35 0.5))
+     (make-segment (make-vect 0.35 0.5) (make-vect 0.3  0.6))
+     (make-segment (make-vect 0.75 0)   (make-vect 0.65 0.5))
+     (make-segment (make-vect 0.65 0.5) (make-vect 0.7  0.6))
+     (make-segment (make-vect 0.3  0.6) (make-vect 0.4  0.5))
+     (make-segment (make-vect 0.7  0.6) (make-vect 0.6  0.5))
+     (make-segment (make-vect 0.4  0.5) (make-vect 0.6  0.5))
+     (make-segment (make-vect 0.3  0.6) (make-vect 0    0.8))
+     (make-segment (make-vect 0.7  0.6) (make-vect 1    0.8))
+     (make-segment (make-vect 0.4  0.5) (make-vect 0.4  0.8))
+     (make-segment (make-vect 0.6  0.5) (make-vect 0.6  0.8))
+     (make-segment (make-vect 0.4  0.8) (make-vect 0.6  0.8))
+     ; Smile segments
+     (make-segment (make-vect 0.43 0.72) (make-vect 0.47 0.70))
+     (make-segment (make-vect 0.47 0.70) (make-vect 0.53 0.70))
+     (make-segment (make-vect 0.53 0.70) (make-vect 0.57 0.72))))))
+
+; b. Modified corner-split using single copies of up-split and right-split
+(define (corner-split painter n)
+  (if (= n 0)
+      painter
+      (let ((up    (up-split    painter (- n 1)))
+            (right (right-split painter (- n 1)))
+            (corner (corner-split painter (- n 1))))
+        (beside (below painter up)
+                (below right corner)))))
+
+; c. Modified square-limit with painters facing outward from each corner
+(define (square-limit painter n)
+  (let ((combine4 (square-of-four flip-horiz     identity
+                                  rotate180      flip-vert)))
+    (combine4 (corner-split painter n))))
+#+end_src
+
+** Exercise 53
+What are the values of the following expressions?
+
+#+begin_src scheme
+(list 'a 'b 'c)
+(list (list 'george))
+(cdr '((x1 x2) (y1 y2)))
+(cadr '((x1 x2) (y1 y2)))
+(pair? (car '(a short list)))
+(memq 'red '((red shoes) (blue socks)))
+(memq 'red '(red shoes blue socks))
+#+end_src
+
+*** Solution
+#+begin_src scheme
+(list 'a 'b 'c)
+; (a b c)
+
+(list (list 'george))
+; ((george))
+
+(cdr '((x1 x2) (y1 y2)))
+; ((y1 y2))
+
+(cadr '((x1 x2) (y1 y2)))
+; (y1 y2)
+
+(pair? (car '(a short list)))
+; #f  — (car '(a short list)) is the symbol a, which is not a pair
+
+(memq 'red '((red shoes) (blue socks)))
+; #f  — the elements of the list are (red shoes) and (blue socks),
+;       neither of which is eq? to the symbol red
+
+(memq 'red '(red shoes blue socks))
+; (red shoes blue socks)  — red is found at the front
+#+end_src
+
+** Exercise 54
+Two lists are said to be =equal?= if they contain equal elements arranged in the same order. For example:
+
+#+begin_src scheme
+(equal? '(this is a list) '(this is a list))    ; #t
+(equal? '(this is a list) '(this (is a) list))  ; #f
+#+end_src
+
+To be more precise, we can define =equal?= recursively in terms of the basic =eq?= equality of symbols by saying that =a= and =b= are =equal?= if they are both symbols and the symbols are =eq?=, or if they are both lists such that =(car a)= is =equal?= to =(car b)= and =(cdr a)= is =equal?= to =(cdr b)=. Using this idea, implement =equal?= as a procedure.
+
+*** Solution
+#+begin_src scheme
+(define (equal? a b)
+  (cond ((and (null? a) (null? b)) #t)
+        ((or  (null? a) (null? b)) #f)
+        ((and (pair? a) (pair? b))
+         (and (equal? (car a) (car b))
+              (equal? (cdr a) (cdr b))))
+        ((or (pair? a) (pair? b)) #f)
+        (else (eq? a b))))
+#+end_src
+
+This handles all cases: two empty lists are equal, a pair is only equal to another pair (recursively checking both =car= and =cdr=), and two non-pair atoms are compared with =eq?=.
+
+** Exercise 55
+Eva Lu Ator types to the interpreter the expression ='(a b)= and is surprised when the interpreter prints back =(quote (a b))= rather than =(a b)=. Explain.
+
+*** Solution
+The single-quote character ='= is reader syntax — a shorthand that the Lisp reader expands before the interpreter ever sees it. Specifically, ='x= is expanded to =(quote x)= during the read phase.
+
+So when Eva types ='(a b)=, the reader first expands the leading ='= and produces =(quote (a b))=. But now the entire expression is =(quote (a b))=, which itself begins with a ='=! In other words, she has effectively typed =''(a b)=, which the reader expands in two steps:
+
+#+begin_src
+''(a b)
+→ '(quote (a b))
+→ (quote (quote (a b)))
+#+end_src
+
+When the interpreter evaluates =(quote (quote (a b)))=, it returns the unevaluated form =(quote (a b))=, which the printer displays as =(quote (a b))=. If Eva had typed just =(a b)= or ='(a b)= without the extra quote, she would have gotten the expected result.
+
+** Exercise 56
+Show how to extend the basic differentiator to handle more kinds of expressions. For instance, implement the differentiation rule:
+
+$$\frac{d(u^n)}{dx} = nu^{n-1}\frac{du}{dx}$$
+
+by adding a new clause to the =deriv= program and defining appropriate procedures =exponentiation?=, =base=, =exponent=, and =make-exponentiation=. (You may use the symbol =**= to denote exponentiation.) Build in the rules that anything raised to the power 0 is 1 and anything raised to the power 1 is the thing itself.
+
+*** Solution
+#+begin_src scheme
+; Constructor and selectors
+(define (make-exponentiation base exponent)
+  (cond ((= exponent 0) 1)
+        ((= exponent 1) base)
+        (else (list '** base exponent))))
+
+(define (exponentiation? exp)
+  (and (pair? exp) (eq? (car exp) '**)))
+
+(define (base e) (cadr e))
+(define (exponent e) (caddr e))
+
+; New clause to add to deriv
+(define (deriv exp var)
+  (cond ((number? exp) 0)
+        ((variable? exp) (if (same-variable? exp var) 1 0))
+        ((sum? exp)
+         (make-sum (deriv (addend exp) var)
+                   (deriv (augend exp) var)))
+        ((product? exp)
+         (make-sum
+          (make-product (multiplier exp) (deriv (multiplicand exp) var))
+          (make-product (deriv (multiplier exp) var) (multiplicand exp))))
+        ((exponentiation? exp)
+         (make-product
+          (make-product (exponent exp)
+                        (make-exponentiation (base exp) (- (exponent exp) 1)))
+          (deriv (base exp) var)))
+        (else (error "unknown expression type: DERIV" exp))))
+#+end_src
+
+** Exercise 57
+Extend the differentiation program to handle sums and products of arbitrary numbers of (two or more) terms. Then the last example above could be expressed as:
+
+#+begin_src scheme
+(deriv '(* x y (+ x 3)) 'x)
+#+end_src
+
+Try to do this by changing only the representation for sums and products, without changing the =deriv= procedure at all. For example, the =addend= of a sum would be the first term, and the =augend= would be the sum of the rest of the terms.
+
+*** Solution
+#+begin_src scheme
+; Sums: addend is first term, augend is the sum of the rest
+(define (augend s)
+  (let ((rest (cddr s)))
+    (if (null? (cdr rest))
+        (car rest)
+        (cons '+ rest))))
+
+; Products: multiplier is first term, multiplicand is the product of the rest
+(define (multiplicand p)
+  (let ((rest (cddr p)))
+    (if (null? (cdr rest))
+        (car rest)
+        (cons '* rest))))
+#+end_src
+
+By making =augend= and =multiplicand= reconstruct a new sum or product from the remaining terms, the =deriv= procedure itself needs no modification. It will recursively differentiate the remaining sub-expression, which may itself be a multi-term sum or product, until it bottoms out at a two-term expression.
+
+** Exercise 58
+Suppose we want to modify the differentiation program so that it works with ordinary mathematical notation, in which =+= and =*= are infix rather than prefix operators. Since the differentiation program is defined in terms of abstract data, we can modify it to work with different representations of expressions solely by changing the predicates, selectors, and constructors that define the representation of the algebraic expressions on which the differentiator is to operate.
+
+a. Show how to do this in order to differentiate algebraic expressions presented in infix form, such as =(x + (3 * (x + (y + 2))))=. To simplify the task, assume that =+= and =*= always take exactly two arguments and that expressions are fully parenthesized.
+
+b. The problem becomes substantially harder if we allow standard algebraic notation, such as =(x + 3 * (x + y + 2))=, which drops unnecessary parentheses and assumes that multiplication is done before addition. Can you design appropriate predicates, selectors, and constructors for this notation?
+
+*** Solution
+#+begin_src scheme
+; Part a — fully parenthesized infix
+(define (sum? exp)
+  (and (pair? exp) (eq? (cadr exp) '+)))
+
+(define (addend exp) (car exp))
+(define (augend exp) (caddr exp))
+
+(define (make-sum a b)
+  (cond ((=number? a 0) b)
+        ((=number? b 0) a)
+        ((and (number? a) (number? b)) (+ a b))
+        (else (list a '+ b))))
+
+(define (product? exp)
+  (and (pair? exp) (eq? (cadr exp) '*)))
+
+(define (multiplier exp) (car exp))
+(define (multiplicand exp) (caddr exp))
+
+(define (make-product a b)
+  (cond ((or (=number? a 0) (=number? b 0)) 0)
+        ((=number? a 1) b)
+        ((=number? b 1) a)
+        ((and (number? a) (number? b)) (* a b))
+        (else (list a '* b))))
+
+; Part b — standard infix with precedence (+ binds looser than *)
+; The key idea: a sum is any expression whose top-level operator is +,
+; where "top-level" means not nested inside a * subexpression. We find
+; the rightmost + that is not inside parentheses.
+
+(define (find-rightmost-op op expr)
+  ; Returns the index of the rightmost occurrence of op at the top level,
+  ; or #f if not found. We scan right-to-left.
+  (define (scan lst depth idx best)
+    (cond ((null? lst) best)
+          ((eq? (car lst) '() ) (scan (cdr lst) depth (+ idx 1) best))
+          ((pair? (car lst)) (scan (cdr lst) depth (+ idx 1) best))
+          ((eq? (car lst) op) (scan (cdr lst) depth (+ idx 1) idx))
+          (else (scan (cdr lst) depth (+ idx 1) best))))
+  (scan expr 0 0 #f))
+
+(define (split-at lst idx)
+  (if (= idx 0)
+      (cons '() lst)
+      (let ((rec (split-at (cdr lst) (- idx 1))))
+        (cons (cons (car lst) (car rec)) (cdr rec)))))
+
+(define (sum? expr)
+  (and (pair? expr) (find-rightmost-op '+ expr)))
+
+(define (addend expr)
+  (let* ((idx (find-rightmost-op '+ expr))
+         (parts (split-at expr idx)))
+    (let ((left (car parts)))
+      (if (null? (cdr left)) (car left) left))))
+
+(define (augend expr)
+  (let* ((idx (find-rightmost-op '+ expr))
+         (parts (split-at expr idx)))
+    (let ((right (cddr parts)))
+      (if (null? (cdr right)) (car right) right))))
+
+(define (product? expr)
+  (and (pair? expr)
+       (not (find-rightmost-op '+ expr))
+       (find-rightmost-op '* expr)))
+#+end_src
+
+Part b is considerably more involved. The key insight is that =+= has lower precedence than =*=, so a sum is any expression containing a top-level =+=. We find the rightmost =+= (to ensure left-associative parsing) to split =addend= from =augend=. If no top-level =+= exists but a top-level =*= does, the expression is a product.
+
+** Exercise 59
+Implement the =union-set= operation for the unordered-list representation of sets.
+
+*** Solution
+#+begin_src scheme
+(define (union-set set1 set2)
+  (cond ((null? set1) set2)
+        ((element-of-set? (car set1) set2)
+         (union-set (cdr set1) set2))
+        (else
+         (cons (car set1) (union-set (cdr set1) set2)))))
+#+end_src
+
+This traverses =set1= and includes each element in the result only if it is not already present in =set2=, then appends the remainder of =set1= to =set2=. The result contains every element from both sets with no duplicates.
+
+** Exercise 60
+We specified that a set would be represented as a list with no duplicates. Now suppose we allow duplicates. For instance, the set {1, 2, 3} could be represented as the list =(2 3 2 1 3 2 2)=. Design procedures =element-of-set?=, =adjoin-set=, =union-set=, and =intersection-set= that operate on this representation. How does the efficiency of each compare with the corresponding procedure for the non-duplicate representation? Are there applications for which you would use this representation in preference to the non-duplicate one?
+
+*** Solution
+#+begin_src scheme
+; element-of-set? is unchanged
+(define (element-of-set? x set)
+  (cond ((null? set) #f)
+        ((equal? x (car set)) #t)
+        (else (element-of-set? x (cdr set)))))
+
+; adjoin-set no longer needs to check for membership — just cons
+(define (adjoin-set x set)
+  (cons x set))
+
+; union-set is just append
+(define (union-set set1 set2)
+  (append set1 set2))
+
+; intersection-set is unchanged in structure
+(define (intersection-set set1 set2)
+  (cond ((or (null? set1) (null? set2)) '())
+        ((element-of-set? (car set1) set2)
+         (cons (car set1) (intersection-set (cdr set1) set2)))
+        (else (intersection-set (cdr set1) set2))))
+#+end_src
+
+With duplicates allowed, =adjoin-set= drops from O(n) to O(1) and =union-set= drops from O(n²) to O(n). However =element-of-set?= and =intersection-set= remain O(n) and O(n²) respectively, and in practice the lists may grow much longer due to accumulated duplicates, which can make those operations slower in practice even if the asymptotic class is unchanged.
+
+This representation is preferable when =adjoin-set= and =union-set= are called very frequently and membership tests or intersections are rare — for example, in a write-heavy logging or event-accumulation context where deduplication can be deferred.
+
+** Exercise 61
+Give an implementation of =adjoin-set= using the ordered representation. By analogy with =element-of-set?= show how to take advantage of the ordering to produce a procedure that requires on the average about half as many steps as with the unordered representation.
+
+*** Solution
+#+begin_src scheme
+(define (adjoin-set x set)
+  (cond ((null? set) (list x))
+        ((= x (car set)) set)           ; already present, no change
+        ((< x (car set)) (cons x set))  ; insert before current element
+        (else (cons (car set)
+                    (adjoin-set x (cdr set))))))
+#+end_src
+
+As with =element-of-set?= in the ordered representation, we can stop early: if we encounter an element larger than =x= then =x= is not in the set and should be inserted here. On average this requires scanning only half the list, giving O(n/2) performance compared to O(n) for the unordered case.
+
+** Exercise 62
+Give a Θ(n) implementation of =union-set= for the ordered-list representation.
+
+*** Solution
+#+begin_src scheme
+(define (union-set set1 set2)
+  (cond ((null? set1) set2)
+        ((null? set2) set1)
+        (else
+         (let ((x1 (car set1))
+               (x2 (car set2)))
+           (cond ((= x1 x2)
+                  (cons x1 (union-set (cdr set1) (cdr set2))))
+                 ((< x1 x2)
+                  (cons x1 (union-set (cdr set1) set2)))
+                 (else
+                  (cons x2 (union-set set1 (cdr set2)))))))))
+#+end_src
+
+This mirrors the structure of =intersection-set= for ordered lists. At each step we consume at least one element from one of the two sets, so the total number of steps is proportional to the sum of the sizes of the two sets — giving Θ(n) overall.
+
+** Exercise 63
+Each of the following two procedures converts a binary tree to a list:
+
+#+begin_src scheme
+(define (tree->list-1 tree)
+  (if (null? tree)
+      '()
+      (append (tree->list-1 (left-branch tree))
+              (cons (entry tree)
+                    (tree->list-1 (right-branch tree))))))
+
+(define (tree->list-2 tree)
+  (define (copy-to-list tree result-list)
+    (if (null? tree)
+        result-list
+        (copy-to-list (left-branch tree)
+                      (cons (entry tree)
+                            (copy-to-list (right-branch tree)
+                                          result-list)))))
+  (copy-to-list tree '()))
+#+end_src
+
+a. Do the two procedures produce the same result for every tree? If not, how do the results differ? What lists do the two procedures produce for the trees in Figure 2.16?
+
+b. Do the two procedures have the same order of growth in the number of steps required to convert a balanced tree with n elements? If not, which grows more slowly?
+
+*** Solution
+Both procedures perform an in-order traversal (left subtree, root, right subtree), so they produce the same result for every tree: a sorted list of the elements in ascending order.
+
+For the trees in Figure 2.16 (which all contain the elements 1, 3, 5, 7, 9, 11), both procedures produce =(1 3 5 7 9 11)= regardless of the tree's shape.
+
+However the two procedures differ in their order of growth. =tree->list-1= uses =append=, which copies the left-branch result at each node. For a balanced tree of n nodes, this gives a recurrence T(n) = 2T(n/2) + O(n/2), which solves to O(n log n). =tree->list-2= avoids =append= entirely by using an accumulator, so each element is =cons=ed exactly once, giving O(n). Therefore =tree->list-2= grows more slowly and is the more efficient procedure.
+
+** Exercise 64
+The following procedure =list->tree= converts an ordered list to a balanced binary search tree. The helper procedure =partial-tree= takes as arguments an integer n and a list of at least n elements and constructs a balanced tree containing the first n elements of the list. The result returned by =partial-tree= is a pair (formed with =cons=) whose =car= is the constructed tree and whose =cdr= is the list of elements not included in the tree.
+
+#+begin_src scheme
+(define (list->tree elements)
+  (car (partial-tree elements (length elements))))
+
+(define (partial-tree elts n)
+  (if (= n 0)
+      (cons '() elts)
+      (let ((left-size (quotient (- n 1) 2)))
+        (let ((left-result (partial-tree elts left-size)))
+          (let ((left-tree (car left-result))
+                (non-left-elts (cdr left-result))
+                (right-size (- n (+ left-size 1))))
+            (let ((this-entry (car non-left-elts))
+                  (right-result (partial-tree (cdr non-left-elts)
+                                              right-size)))
+              (let ((right-tree (car right-result))
+                    (remaining-elts (cdr right-result)))
+                (cons (make-tree this-entry left-tree right-tree)
+                      remaining-elts))))))))
+#+end_src
+
+a. Write a short paragraph explaining as clearly as you can how =partial-tree= works. Draw the tree produced by =list->tree= for the list =(1 3 5 7 9 11)=.
+
+b. What is the order of growth in the number of steps required by =list->tree= to convert a list of n elements?
+
+*** Solution
+Part a: =partial-tree= works by dividing the n elements to be placed into three groups. It allocates ⌊(n-1)/2⌋ elements to the left subtree and the remaining ⌈(n-1)/2⌉ elements to the right subtree, with one element becoming the root. It first recursively builds the left subtree from the front of the list, then takes the next element as the root entry, then recursively builds the right subtree from the remaining elements. Because the input list is sorted and the split is always roughly half-and-half, the resulting tree is balanced.
+
+For =(1 3 5 7 9 11)= the produced tree is:
+
+#+begin_src
+        5
+       / \
+      3   9
+     /   / \
+    1   7   11
+#+end_src
+
+Part b: Each element is visited exactly once — =partial-tree= processes each element in the list by either placing it as a root entry or passing it through the recursive calls. Therefore the order of growth is Θ(n).
+
+** Exercise 65
+Use the results of exercises 2.63 and 2.64 to give Θ(n) implementations of =union-set= and =intersection-set= for sets implemented as (balanced) binary trees.
+
+*** Solution
+#+begin_src scheme
+; Convert both trees to sorted lists, apply the ordered-list
+; operations from exercises 2.62 and the intersection analogue,
+; then convert the result back to a balanced tree.
+
+(define (union-set-tree set1 set2)
+  (list->tree
+   (union-set-list (tree->list-2 set1)
+                   (tree->list-2 set2))))
+
+(define (intersection-set-tree set1 set2)
+  (list->tree
+   (intersection-set-list (tree->list-2 set1)
+                          (tree->list-2 set2))))
+
+; Where union-set-list and intersection-set-list are the
+; Θ(n) ordered-list versions:
+
+(define (union-set-list set1 set2)
+  (cond ((null? set1) set2)
+        ((null? set2) set1)
+        (else
+         (let ((x1 (car set1)) (x2 (car set2)))
+           (cond ((= x1 x2)  (cons x1 (union-set-list (cdr set1) (cdr set2))))
+                 ((< x1 x2)  (cons x1 (union-set-list (cdr set1) set2)))
+                 (else        (cons x2 (union-set-list set1 (cdr set2)))))))))
+
+(define (intersection-set-list set1 set2)
+  (if (or (null? set1) (null? set2))
+      '()
+      (let ((x1 (car set1)) (x2 (car set2)))
+        (cond ((= x1 x2) (cons x1 (intersection-set-list (cdr set1) (cdr set2))))
+              ((< x1 x2) (intersection-set-list (cdr set1) set2))
+              (else       (intersection-set-list set1 (cdr set2)))))))
+#+end_src
+
+Each step is Θ(n): =tree->list-2= is Θ(n), the ordered-list union and intersection are Θ(n), and =list->tree= is Θ(n). The composition of Θ(n) operations is Θ(n) overall.
+
+** Exercise 66
+Implement the =lookup= procedure for the case where the set of records is structured as a binary tree, ordered by the numerical values of the keys.
+
+*** Solution
+#+begin_src scheme
+(define (lookup given-key tree-of-records)
+  (if (null? tree-of-records)
+      #f
+      (let ((current-key (key (entry tree-of-records))))
+        (cond ((= given-key current-key)
+               (entry tree-of-records))
+              ((< given-key current-key)
+               (lookup given-key (left-branch tree-of-records)))
+              (else
+               (lookup given-key (right-branch tree-of-records)))))))
+#+end_src
+
+This is a standard binary search tree lookup. At each node we compare the target key against the current node's key and recurse into the left subtree if the target is smaller, the right subtree if it is larger, or return the record if we have found a match. For a balanced tree of n records this requires Θ(log n) steps, compared to Θ(n) for the unordered or ordered list representations.
