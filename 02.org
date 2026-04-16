@@ -1810,6 +1810,8 @@ b. The problem becomes substantially harder if we allow standard algebraic notat
 
 Part b is considerably more involved. The key insight is that =+= has lower precedence than =*=, so a sum is any expression containing a top-level =+=. We find the rightmost =+= (to ensure left-associative parsing) to split =addend= from =augend=. If no top-level =+= exists but a top-level =*= does, the expression is a product.
 
+* Representing Sets
+
 ** Exercise 59
 Implement the =union-set= operation for the unordered-list representation of sets.
 
@@ -1823,7 +1825,7 @@ Implement the =union-set= operation for the unordered-list representation of set
          (cons (car set1) (union-set (cdr set1) set2)))))
 #+end_src
 
-This traverses =set1= and includes each element in the result only if it is not already present in =set2=, then appends the remainder of =set1= to =set2=. The result contains every element from both sets with no duplicates.
+This traverses =set1= and includes each element in the result only if it is not already present in =set2=, then appends the remainder of =set1= to =set2=. The result contains every element from both sets with no duplicates. It is an O(n^2) task, each lookup is O(n) and it is done for each of the n items.
 
 ** Exercise 60
 We specified that a set would be represented as a list with no duplicates. Now suppose we allow duplicates. For instance, the set {1, 2, 3} could be represented as the list =(2 3 2 1 3 2 2)=. Design procedures =element-of-set?=, =adjoin-set=, =union-set=, and =intersection-set= that operate on this representation. How does the efficiency of each compare with the corresponding procedure for the non-duplicate representation? Are there applications for which you would use this representation in preference to the non-duplicate one?
@@ -2028,3 +2030,252 @@ Implement the =lookup= procedure for the case where the set of records is struct
 #+end_src
 
 This is a standard binary search tree lookup. At each node we compare the target key against the current node's key and recurse into the left subtree if the target is smaller, the right subtree if it is larger, or return the record if we have found a match. For a balanced tree of n records this requires Θ(log n) steps, compared to Θ(n) for the unordered or ordered list representations.
+
+* Huffman Encoding Trees
+
+
+** Exercise 67
+I'm going to stop writing the exercises themselves now, it just makes things a lot longer.
+
+#+begin_src scheme
+; The sample tree from the book:
+(define sample-tree
+  (make-code-tree
+   (make-leaf 'A 4)
+   (make-code-tree
+    (make-leaf 'B 2)
+    (make-code-tree
+     (make-leaf 'D 1)
+     (make-leaf 'C 1)))))
+
+(define sample-message '(0 1 1 0 0 1 0 1 0 1 1 1 0))
+#+end_src
+
+#+RESULTS:
+
+Tracing this decoding by hand looks like
+#+begin_src scheme
+; Tree structure:
+;        {A B C D} 8
+;       /           \
+;     A:4         {B C D}:4
+;                 /       \
+;               B:2      {C D}:2
+;                        /    \
+;                      D:1    C:1
+;
+; Codes:  A=0   B=10   D=110   C=111
+;
+; Bits:  0 | 1 1 0 | 0 | 1 0 | 1 0 | 1 1 1 | 0
+; Syms:  A |  D    | A |  B  |  B  |   C   | A
+;
+; Result: (A D A B B C A)
+#+end_src
+
+Running the code from the book gives us:
+#+begin_src scheme :results value :session huffman
+(define (make-leaf symbol weight)
+  (list 'leaf symbol weight))
+(define (leaf? object)
+  (eq? (car object) 'leaf))
+(define (symbol-leaf x) (cadr x))
+(define (weight-leaf x) (caddr x))
+
+(define (left-branch tree) (car tree))
+(define (right-branch tree) (cadr tree))
+
+(define (symbols tree)
+  (if (leaf? tree)
+      (list (symbol-leaf tree))
+      (caddr tree)))
+
+(define (weight tree)
+  (if (leaf? tree)
+      (weight-leaf tree)
+      (cadddr tree)))
+
+(define (make-code-tree left right)
+  (list left
+        right
+        (append (symbols left)
+                (symbols right))
+        (+ (weight left) (weight right))))
+
+(define (decode bits tree)
+  (define (decode-1 bits current-branch)
+    (if (null? bits)
+        '()
+        (let ((next-branch
+               (choose-branch
+                (car bits)
+                current-branch)))
+          (if (leaf? next-branch)
+              (cons
+               (symbol-leaf next-branch)
+               (decode-1 (cdr bits) tree))
+              (decode-1 (cdr bits)
+                        next-branch)))))
+  (decode-1 bits tree))
+
+(define (choose-branch bit branch)
+  (cond ((= bit 0) (left-branch branch))
+        ((= bit 1) (right-branch branch))
+        (else (error "bad bit:
+               CHOOSE-BRANCH" bit))))
+(define sample-tree
+  (make-code-tree
+   (make-leaf 'A 4)
+   (make-code-tree
+    (make-leaf 'B 2)
+    (make-code-tree
+     (make-leaf 'D 1)
+     (make-leaf 'C 1)))))
+
+(define sample-message '(0 1 1 0 0 1 0 1 0 1 1 1 0))
+(decode sample-message sample-tree)
+#+end_src
+#+RESULTS:
+| A | D | A | B | B | C | A |
+
+This matches our hand written decoding.
+
+** Exercise 68
+
+#+begin_src scheme
+(define (encode-symbol symbol tree)
+  (cond ((leaf? tree)
+         (if (eq? symbol (symbol-leaf tree))
+             '()
+             (error "symbol not in tree" symbol)))
+        ((memq symbol (symbols (left-branch tree)))
+         (cons 0 (encode-symbol symbol (left-branch tree))))
+        ((memq symbol (symbols (right-branch tree)))
+         (cons 1 (encode-symbol symbol (right-branch tree))))
+        (else
+         (error "symbol not in tree" symbol))))
+
+(encode '(A D A B B C A) sample-tree)
+;; =>  (0 1 1 0 0 1 0 1 0 1 1 1 0) -- this matches the original message
+#+end_src
+
+
+** Exercise 69
+
+#+begin_src scheme
+; The book provides generate-huffman-tree and make-leaf-set.
+; make-leaf-set produces a list of leaves sorted by frequency.
+; We must write successive-merge, which repeatedly merges
+; the two lowest-weight nodes.
+
+(define (successive-merge leaf-set)
+  (if (null? (cdr leaf-set))
+      (car leaf-set)           ; single tree remains — done
+      (let ((first  (car leaf-set))
+            (second (cadr leaf-set))
+            (rest   (cddr leaf-set)))
+        (successive-merge
+         (adjoin-set (make-code-tree first second)
+                     rest)))))
+#+end_src
+
+This works because ~make-leaf-set~ returns leaves sorted ascending by weight, the two lowest-weight items are always at the front. We merge them with ~make-code-tree~ (whose weight is the sum) and use ~adjoin-set~ to re-insert the new combined node back into the sorted list. We repeat until only one tree remains. ~adjoin-set~ here is the ordered-list version that inserts in the correct position, maintaining the invariant. This is "exactly" Huffman's greedy algorithm (spirit, not necessarily my implementation).
+
+** Exercise 70
+
+#+begin_src scheme
+(define pairs
+  '((A 2) (GET 2) (SHA 3) (WAH 1)
+    (BOOM 1) (JOB 2) (NA 16) (YIP 9)))
+
+; Weights sorted: WAH:1 BOOM:1 A:2 GET:2 JOB:2 SHA:3 YIP:9 NA:16
+;
+; Merge WAH+BOOM  → {W,B}:2
+; Sorted: A:2 GET:2 JOB:2 {W,B}:2 SHA:3 YIP:9 NA:16
+; Merge A+GET     → {A,G}:4
+; Sorted: JOB:2 {W,B}:2 SHA:3 {A,G}:4 YIP:9 NA:16
+; Merge JOB+{W,B} → {J,W,B}:4
+; Sorted: SHA:3 {A,G}:4 {J,W,B}:4 YIP:9 NA:16
+; Merge SHA+{A,G} → {S,A,G}:7
+; Sorted: {J,W,B}:4 {S,A,G}:7 YIP:9 NA:16
+; Merge {J,W,B}+{S,A,G} → {all-but-YIP-NA}:11
+; Sorted: YIP:9 NA:16 {J,W,B,S,A,G}:11  (→ YIP:9 {..}:11 NA:16)
+; Merge YIP+{..}  → {all-but-NA}:20
+; Merge with NA   → root:36
+
+; NA  → 0           (1 bit)
+; YIP → 10          (2 bits)
+; ... lower-freq symbols → 4–5 bits
+;
+; Song message (36 tokens):
+;   "Get a job" × 2, "sha na na ..." × many, "yip yip ..." × many
+;
+; Huffman total: ≈ 84 bits
+;
+; Fixed-length code for 8 symbols needs 3 bits each.
+; 36 symbols × 3 bits = 108 bits.
+;
+; Huffman saves ~22% over fixed-length encoding.
+#+end_src
+
+The exact bit count depends on the tree shape your merge order produces. The book's answer is 84 bits for Huffman vs 108 bits for fixed-length (3 bits x 36 symbols), because NA (the most frequent word) gets a 1-bit code and YIP gets a 2-bit code, compressing the repetitive parts of the song.
+
+** Exercise 71
+
+With n symbols at relative frequencies $1, 2, 4, \ldots{}, 2^{(n-1)}$, every merge step combines the two smallest. Because each frequency is the sum of all smaller ones, the merged subtree always has exactly the weight of the next symbol up.
+
+The tree degenerates into a right-leaning "comb" (caterpillar):
+
+$n = 5$ example: frequencies 1,2,4,8,16
+
+             root:31
+            /       \
+         E:16      {A..D}:15
+                  /        \
+                D:8       {A..C}:7
+                          /      \
+                        C:4     {A,B}:3
+                                /     \
+                              B:2     A:1
+
+Most frequent symbol (E): depth 1 → 1 bit
+Least frequent symbol (A): depth n-1 → (n-1) bits
+
+
+General answer for any n
+
+Most frequent symbol  → 1 bit
+Least frequent symbol → (n - 1) bits
+
+The geometric progression of frequencies forces the tree into the most skewed shape possible. Each merge produces a node whose weight equals the next power of 2, which is immediately "dominated" by the next leaf in the queue.
+
+
+** Exercise 72
+At each internal node, ~encode-symbol~ calls ~(memq symbol ...)~ against the symbol list of the left or right branch. A symbol list at depth d contains up to (n - d) symbols.
+
+~encode-symbol~ descends from the root to a leaf. At each level it does one memq scan. In the worst case (balanced tree, depth = O(log n)):  Each memq scans O(n) symbols at the top, fewer below.
+
+Total work: O(n) + O(n/2) + O(n/4) + … = O(n).
+
+The tree depth is O(log n) but the sum is dominated by O(n).
+
+*General answer:* O(n log n) worst case for a general tree (depth x list scan), but O(n) for a balanced tree due to the geometric sum argument above.
+
+There is a special case for powers of 2. Most frequent symbol (E in n=5 example):
+
+*Depth = 1:* One memq scan of the root's right-branch symbols. That list has (n-1) symbols.
+*Cost:* O(n).
+
+Least frequent symbol (A):
+*Depth = (n-1):* At each level d, the symbol list has (n-d) entries.
+*Total:* (n-1) + (n-2) + … + 1 = n(n-1)/2 = O(n²).
+
+For the powers-of-2 ("skewed comb") tree:
+
+        Most frequent symbol  → O(n)
+        Least frequent symbol → O(n²)
+
+ The cost of encoding one symbol depends on both the depth of that symbol's leaf and the size of the symbol lists scanned along the path. For the skewed comb tree, the most frequent symbol costs O(n) (one scan of a nearly-full list), while the least frequent costs O(n²) (many scans of progressively smaller lists that sum to a quadratic total). For a balanced tree, the geometric decay of list sizes makes the total O(n) regardless of which symbol is encoded.
+
+
+Chapter completed.
+April 2026.
